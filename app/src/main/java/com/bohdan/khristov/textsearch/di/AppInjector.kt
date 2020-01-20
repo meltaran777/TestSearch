@@ -6,7 +6,7 @@ import android.os.Bundle
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentManager
-import com.bohdan.khrystov.textsearch.App
+import com.bohdan.khristov.textsearch.App
 
 import dagger.android.AndroidInjection
 import dagger.android.support.AndroidSupportInjection
