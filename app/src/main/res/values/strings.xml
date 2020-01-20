@@ -3,4 +3,10 @@
     <string name="home">Home</string>
     <string name="history">History</string>
     <string name="in_progress">In Progress</string>
+    <string name="new_search">New search</string>
+    <string name="search">Search</string>
+    <string name="search_for">Search for</string>
+    <string name="cancel">Cancel</string>
+    <string name="url">Url</string>
+    <string name="enter_url">Enter URL</string>
 </resources>

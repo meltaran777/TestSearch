@@ -32,4 +32,5 @@ ext {
     daggerVersion = '2.15'
     lifecycleVersion = '2.0.0'
     androidxVersion = '1.0.0'
+    dialogVersion = "2.8.1"
 }
