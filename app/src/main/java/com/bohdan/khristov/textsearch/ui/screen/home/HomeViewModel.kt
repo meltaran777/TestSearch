@@ -1,4 +1,4 @@
-package com.bohdan.khristov.textsearch.ui
+package com.bohdan.khristov.textsearch.ui.screen.home
 
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -6,7 +6,7 @@ import com.bohdan.khristov.textsearch.domain.SearchInteractor
 import com.bohdan.khristov.textsearch.domain.common.Resource.Status.*
 import javax.inject.Inject
 
-class MainViewModel @Inject constructor(private val searchInteractor: SearchInteractor) : ViewModel() {
+class HomeViewModel @Inject constructor(private val searchInteractor: SearchInteractor) : ViewModel() {
 
     var url = ""
 

@@ -1,6 +1,6 @@
 package com.bohdan.khristov.textsearch.di.module
 
-import com.bohdan.khristov.textsearch.ui.MainActivity
+import com.bohdan.khristov.textsearch.ui.screen.home.HomeActivity
 import dagger.Module
 import dagger.android.ContributesAndroidInjector
 
@@ -8,5 +8,5 @@ import dagger.android.ContributesAndroidInjector
 abstract class ActivityModule {
 
     @ContributesAndroidInjector
-    abstract fun contributeMainActivity(): MainActivity
+    abstract fun contributeMainActivity(): HomeActivity
 }
