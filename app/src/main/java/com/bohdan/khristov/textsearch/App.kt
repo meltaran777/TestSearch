@@ -1,9 +1,8 @@
-package com.bohdan.khrystov.textsearch
+package com.bohdan.khristov.textsearch
 
 import android.app.Activity
 import android.app.Application
 import android.app.Service
-import android.os.StrictMode
 import com.bohdan.khrystov.textsearchdi.AppInjector
 import dagger.android.AndroidInjector
 import dagger.android.DispatchingAndroidInjector
@@ -22,8 +21,6 @@ class App : Application(), HasActivityInjector, HasServiceInjector {
     override fun onCreate() {
         super.onCreate()
         AppInjector.init(this)
-
-        StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder().build())
     }
 
     override fun activityInjector() = dispatchingAndroidInjector

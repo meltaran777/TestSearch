@@ -1,7 +1,7 @@
 package com.bohdan.khrystov.textsearchdi
 
 import android.app.Application
-import com.bohdan.khrystov.textsearch.App
+import com.bohdan.khristov.textsearch.App
 import com.bohdan.khristov.textsearch.di.module.ActivityModule
 import com.bohdan.khristov.textsearch.di.module.ApplicationModule
 import com.bohdan.khristov.textsearch.di.module.ServiceBuilderModule
