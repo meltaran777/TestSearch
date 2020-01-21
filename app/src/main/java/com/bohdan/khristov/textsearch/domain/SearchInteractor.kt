@@ -18,6 +18,8 @@ class SearchInteractor @Inject constructor(
     private val searchRepository: ISearchRepository
 ) {
 
+    private var requestCounter = 0
+
     fun search(
         searchRequest: SearchRequest,
         resource: (Resource<SearchModel>) -> Unit
@@ -29,9 +31,18 @@ class SearchInteractor @Inject constructor(
                 val textEntries = fetchedText.entriesCount(searchRequest.textToFind)
                 val parentUrls = fetchedText.extractUrls()
                 val searchModel = SearchModel(searchRequest, SearchResult(textEntries, parentUrls))
-                L.log("SearchInteractor","searchModel = $searchModel")
-                resource(Resource.success(searchModel)
-                )
+                val maxUrls = 10
+
+                L.log("SearchInteractor", "searchModel = $searchModel")
+
+                resource(Resource.success(searchModel))
+
+                parentUrls.forEachIndexed { index, url ->
+                    if (requestCounter < maxUrls) {
+                        search(SearchRequest(url, searchRequest.textToFind), resource)
+                    }
+                   requestCounter++
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 resource(Resource.error("Error while search"))
