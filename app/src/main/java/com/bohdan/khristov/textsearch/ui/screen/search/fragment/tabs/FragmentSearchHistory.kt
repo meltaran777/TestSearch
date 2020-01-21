@@ -1,4 +1,4 @@
-package com.bohdan.khristov.textsearch.ui.screen.home.fragment.tabs
+package com.bohdan.khristov.textsearch.ui.screen.search.fragment.tabs
 
 import android.os.Bundle
 import android.view.View

@@ -1,12 +1,12 @@
-package com.bohdan.khristov.textsearch.ui.screen.home.fragment
+package com.bohdan.khristov.textsearch.ui.screen.search.fragment
 
 import android.os.Bundle
 import android.view.View
 import com.bohdan.khristov.textsearch.R
 import com.bohdan.khristov.textsearch.ui.common.BaseFragment
 import com.bohdan.khristov.textsearch.ui.common.TabsAdapter
-import com.bohdan.khristov.textsearch.ui.screen.home.fragment.tabs.FragmentSearchHistory
-import com.bohdan.khristov.textsearch.ui.screen.home.fragment.tabs.FragmentSearchInProgress
+import com.bohdan.khristov.textsearch.ui.screen.search.fragment.tabs.FragmentSearchHistory
+import com.bohdan.khristov.textsearch.ui.screen.search.fragment.tabs.FragmentSearchInProgress
 import kotlinx.android.synthetic.main.fragment_home_tabs.*
 
 class TabsFragment : BaseFragment() {
