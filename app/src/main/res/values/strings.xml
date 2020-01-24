@@ -16,4 +16,5 @@
     <string name="entries_label">Total text entries:</string>
     <string name="start_search">Start search</string>
     <string name="log">Log</string>
+    <string name="completed">Completed</string>
 </resources>
