@@ -18,7 +18,7 @@ class SearchInteractor @Inject constructor(
     private val searchRepository: ISearchRepository
 ) {
 
-    private var requestCounter = 0
+    private var urlCounter = 0
 
     fun search(
         searchRequest: SearchRequest,
@@ -27,21 +27,22 @@ class SearchInteractor @Inject constructor(
         return GlobalScope.launch(Dispatchers.IO) {
             resource(Resource.loading())
             try {
-                val fetchedText = searchRepository.getText(searchRequest.rootUrl)
+                val fetchedText = searchRepository.getText(searchRequest.url)
                 val textEntries = fetchedText.entriesCount(searchRequest.textToFind)
                 val parentUrls = fetchedText.extractUrls()
                 val searchModel = SearchModel(searchRequest, SearchResult(textEntries, parentUrls))
-                val maxUrls = 10
+                val maxUrlsCount = searchRequest.maxUrlCount
 
                 L.log("SearchInteractor", "searchModel = $searchModel")
 
                 resource(Resource.success(searchModel))
 
                 parentUrls.forEachIndexed { index, url ->
-                    if (requestCounter < maxUrls) {
-                        search(SearchRequest(url, searchRequest.textToFind), resource)
+                    if (urlCounter < maxUrlsCount) {
+                        val newSearchRequest = searchRequest.copy(url = url)
+                        search(newSearchRequest, resource)
                     }
-                   requestCounter++
+                    urlCounter++
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

@@ -28,7 +28,7 @@ class CreateSearchDialog(
         val queryEt: EditText = customView.findViewById(R.id.queryEt)
 
         dialog.positiveButton(R.string.search) {
-            onPositive?.invoke(SearchRequest(urlEt.text.toString(), queryEt.text.toString()))
+            onPositive?.invoke(SearchRequest(urlEt.text.toString(), queryEt.text.toString(), 100))
         }
         dialog.negativeButton(R.string.cancel)
 

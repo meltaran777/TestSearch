@@ -12,9 +12,9 @@ class SearchCell(val view: View) : Cell<SearchModel, SearchCell.Listener>(view) 
 
     override fun bindView() {
         item?.let { searchModel ->
-            view.rootUrlTv.text = searchModel.request.rootUrl
+            view.rootUrlTv.text = searchModel.request.url
             view.findForTv.text = searchModel.request.textToFind
-            view.entriesCountTv.text = searchModel.result.textEntries.toString()
+            view.entriesCountTv.text = searchModel.result.entriesCount.toString()
         }
     }
 

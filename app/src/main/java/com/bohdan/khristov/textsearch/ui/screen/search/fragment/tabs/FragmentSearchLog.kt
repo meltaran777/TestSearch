@@ -8,21 +8,16 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.bohdan.khristov.textsearch.R
 import com.bohdan.khristov.textsearch.data.model.SearchModel
 import com.bohdan.khristov.textsearch.ui.common.BaseFragment
-import com.bohdan.khristov.textsearch.ui.dialogs.CreateSearchDialog
-import com.bohdan.khristov.textsearch.ui.dialogs.IDialog
 import com.bohdan.khristov.textsearch.ui.screen.search.SearchViewModel
 import com.bohdan.khristov.textsearch.ui.screen.search.cell.SearchCell
-import com.bohdan.khristov.textsearch.util.L
 import io.techery.celladapter.CellAdapter
-import kotlinx.android.synthetic.main.fragment_search_in_progress.*
+import kotlinx.android.synthetic.main.fragment_search_history.*
 
-class FragmentSearchInProgress : BaseFragment() {
-
-    private lateinit var searchViewModel: SearchViewModel
-
-    private lateinit var createSearchDialog: IDialog
+class FragmentSearchLog : BaseFragment() {
 
     private var adapter = CellAdapter()
+
+    private lateinit var searchViewModel: SearchViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,26 +29,20 @@ class FragmentSearchInProgress : BaseFragment() {
 
         adapter.registerCell(SearchModel::class.java, SearchCell::class.java)
 
-        searchInProgressRv.layoutManager = LinearLayoutManager(view.context)
-        searchInProgressRv.adapter = adapter
+        val linearLayoutManager = LinearLayoutManager(view.context)
+        linearLayoutManager.stackFromEnd = true
+        linearLayoutManager.reverseLayout = true
+        searchLogRv.layoutManager = linearLayoutManager
+        searchLogRv.adapter = adapter
 
-        searchViewModel.searchModel.observe(activity!!, Observer { searchModel ->
-            L.log("FragmentSearchInProgress","searchModel = $searchModel")
+        searchViewModel.searchModel.observe(this, Observer { searchModel ->
             adapter.addItem(searchModel)
         })
-
-        createSearchDialog = CreateSearchDialog(view.context) { searchRequest ->
-            searchViewModel.search(searchRequest)
-        }
-
-        fab.setOnClickListener {
-            createSearchDialog.show()
-        }
     }
 
-    override fun getLayoutId() = R.layout.fragment_search_in_progress
+    override fun getLayoutId() = R.layout.fragment_search_history
 
     companion object {
-        fun newInstance() = FragmentSearchInProgress()
+        fun newInstance() = FragmentSearchLog()
     }
 }
