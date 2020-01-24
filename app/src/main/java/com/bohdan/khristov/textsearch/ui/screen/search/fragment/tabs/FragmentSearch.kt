@@ -26,19 +26,22 @@ class FragmentSearch : BaseFragment() {
         searchViewModel.searchModel.observe(this, Observer { searchModel ->
             currentUrlTv.text = searchModel.request.url
         })
-        searchViewModel.totalTextEntries.observe(this, Observer { textEntriesCount ->
+        searchViewModel.totalEntries.observe(this, Observer { textEntriesCount ->
             entriesCountTv.text = textEntriesCount.toString()
+        })
+        searchViewModel.progress.observe(this, Observer { progress ->
+            searchPb.progress = progress
         })
 
         searchBtn.setOnClickListener {
-            searchViewModel.search(
-                SearchRequest(
-                    url = urlEt.text.toString(),
-                    textToFind = textToFindEt.text.toString(),
-                    maxUrlCount = maxUrlCountEt.text.toString().toInt(),
-                    threadCount = threadCountEt.text.toString().toInt()
-                )
+            val searchRequest = SearchRequest(
+                url = urlEt.text.toString(),
+                textToFind = textToFindEt.text.toString(),
+                maxUrlCount = maxUrlCountEt.text.toString().toInt(),
+                threadCount = threadCountEt.text.toString().toInt()
             )
+            searchPb.max = searchRequest.maxUrlCount
+            searchViewModel.search(searchRequest)
         }
     }
 

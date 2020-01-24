@@ -4,29 +4,32 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.bohdan.khristov.textsearch.data.model.SearchModel
 import com.bohdan.khristov.textsearch.data.model.SearchRequest
+import com.bohdan.khristov.textsearch.data.model.SearchStatus
 import com.bohdan.khristov.textsearch.domain.SearchInteractor
 import com.bohdan.khristov.textsearch.domain.common.Resource.Status.*
-import com.bohdan.khristov.textsearch.util.L
+import com.bohdan.khristov.textsearch.util.default
 import javax.inject.Inject
 
 class SearchViewModel @Inject constructor(private val searchInteractor: SearchInteractor) :
     ViewModel() {
 
     val searchModel = MutableLiveData<SearchModel>()
-    val totalTextEntries = MutableLiveData<Int>()
+
+    val totalEntries = MutableLiveData<Int>().default(0)
+    val progress = MutableLiveData<Int>().default(0)
+    val searchStatus = MutableLiveData<SearchStatus>()
 
     fun search(searchRequest: SearchRequest) {
-        searchInteractor.search(searchRequest) {
+        searchStatus.value = SearchStatus.IN_PROGRESS
+        searchInteractor.fullSearch(searchRequest) {
             when (it.status) {
                 SUCCESS -> {
                     it.data?.let { searchModel ->
-                        val currentCount = totalTextEntries.value ?: 0
-                        val totalCount = currentCount + searchModel.result.entriesCount
+                        val totalEntries = totalEntries.value?.plus(searchModel.result.entriesCount)
+                        this.totalEntries.postValue(totalEntries)
 
-                        L.log("SearchViewModel", "currentCount = $currentCount")
-                        L.log("SearchViewModel", "totalCount = $totalCount")
+                        progress.postValue(progress.value?.plus(1))
 
-                        totalTextEntries.postValue(totalCount)
                         this.searchModel.postValue(searchModel)
                     }
                 }
@@ -36,5 +39,9 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
                 }
             }
         }
+    }
+
+    fun stopSearch() {
+        searchInteractor.stopSearch()
     }
 }

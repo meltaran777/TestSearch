@@ -30,8 +30,6 @@ class FragmentSearchLog : BaseFragment() {
         adapter.registerCell(SearchModel::class.java, SearchCell::class.java)
 
         val linearLayoutManager = LinearLayoutManager(view.context)
-        linearLayoutManager.stackFromEnd = true
-        linearLayoutManager.reverseLayout = true
         searchLogRv.layoutManager = linearLayoutManager
         searchLogRv.adapter = adapter
 

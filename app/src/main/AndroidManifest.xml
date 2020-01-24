@@ -14,6 +14,7 @@
         android:usesCleartextTraffic="true">
         <activity
             android:name=".ui.screen.search.SearchActivity"
+            android:windowSoftInputMode="stateHidden"
             android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

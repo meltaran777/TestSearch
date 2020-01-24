@@ -8,41 +8,55 @@ import com.bohdan.khristov.textsearch.domain.common.Resource
 import com.bohdan.khristov.textsearch.util.L
 import com.bohdan.khristov.textsearch.util.entriesCount
 import com.bohdan.khristov.textsearch.util.extractUrls
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import javax.inject.Inject
 
 class SearchInteractor @Inject constructor(
     private val searchRepository: ISearchRepository
 ) {
 
-    private var urlCounter = 0
+    private var processedUrlCounter = 0
+    private var currentLevel = 0
+    private val urlsByLevel =
+        mutableMapOf<Int, MutableList<String>>().withDefault { mutableListOf() }
 
-    fun search(
+    fun fullSearch(
         searchRequest: SearchRequest,
         resource: (Resource<SearchModel>) -> Unit
     ): Job {
-        return GlobalScope.launch(Dispatchers.IO) {
+        processedUrlCounter = 0
+        currentLevel = 0
+        urlsByLevel.clear()
+        return search(searchRequest,resource)
+    }
+
+    private fun search(searchRequest: SearchRequest,
+                           resource: (Resource<SearchModel>) -> Unit): Job {
+        return GlobalScope.launch(Dispatchers.Default) {
             resource(Resource.loading())
             try {
-                val fetchedText = searchRepository.getText(searchRequest.url)
-                val textEntries = fetchedText.entriesCount(searchRequest.textToFind)
-                val parentUrls = fetchedText.extractUrls()
-                val searchModel = SearchModel(searchRequest, SearchResult(textEntries, parentUrls))
-                val maxUrlsCount = searchRequest.maxUrlCount
+                if (processedUrlCounter >= searchRequest.maxUrlCount)
+                    return@launch
 
-                L.log("SearchInteractor", "searchModel = $searchModel")
+                if (currentLevel == 0) {
+                    val searchResult = singleSearch(searchRequest)
+                    resource(Resource.success(SearchModel(searchRequest, searchResult)))
+                }
 
-                resource(Resource.success(searchModel))
-
-                parentUrls.forEachIndexed { index, url ->
-                    if (urlCounter < maxUrlsCount) {
-                        val newSearchRequest = searchRequest.copy(url = url)
-                        search(newSearchRequest, resource)
+                val parentUrls = urlsByLevel.getValue(currentLevel)
+                parentUrls.forEachIndexed { index, parentUrl ->
+                    if (processedUrlCounter < searchRequest.maxUrlCount) {
+                        val parentRequest = searchRequest.copy(url = parentUrl)
+                        val parentResult = singleSearch(parentRequest)
+                        resource(Resource.success(SearchModel(parentRequest, parentResult)))
                     }
-                    urlCounter++
+                }
+
+                currentLevel += 1
+                val firstUrlOnNextLevel = urlsByLevel.getValue(currentLevel).firstOrNull()
+                if (firstUrlOnNextLevel != null) {
+                    val request = searchRequest.copy(url = firstUrlOnNextLevel)
+                    search(request, resource)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -50,4 +64,30 @@ class SearchInteractor @Inject constructor(
             }
         }
     }
+
+    private suspend fun singleSearch(searchRequest: SearchRequest) = GlobalScope.async(Dispatchers.Default) {
+        val fetchedText = searchRepository.getText(searchRequest.url)
+        val textEntries = fetchedText.entriesCount(searchRequest.textToFind)
+        val parentUrls = fetchedText.extractUrls()
+        val searchResult = SearchResult(textEntries, parentUrls)
+
+        L.log("SearchInteractor", "currentLevel = $currentLevel")
+        L.log("SearchInteractor", "searchRequest = $searchRequest")
+        L.log("SearchInteractor", "searchResult = $searchResult")
+        L.log("SearchInteractor", "----------------------------------------------------")
+        L.log("SearchInteractor", "====================================================")
+        L.log("SearchInteractor", "----------------------------------------------------")
+
+        val nexLevel = currentLevel + 1
+        val urlOnNextLevel: MutableList<String> = urlsByLevel.getValue(nexLevel)
+        urlOnNextLevel.addAll(parentUrls)
+        urlsByLevel[nexLevel] = urlOnNextLevel
+
+        processedUrlCounter++
+
+        return@async searchResult
+    }.await()
+
+
+    fun stopSearch() {}
 }
