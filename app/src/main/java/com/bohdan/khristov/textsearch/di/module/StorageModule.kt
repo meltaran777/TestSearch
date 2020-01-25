@@ -1,7 +1,7 @@
 package com.bohdan.khristov.textsearch.di.module
 
-import com.bohdan.khristov.textsearch.data.ISearchRepository
-import com.bohdan.khristov.textsearch.data.SearchRepository
+import com.bohdan.khristov.textsearch.data.repository.ISearchRepository
+import com.bohdan.khristov.textsearch.data.repository.SearchRepository
 import dagger.Module
 import dagger.Provides
 import javax.inject.Singleton
@@ -10,5 +10,6 @@ import javax.inject.Singleton
 class StorageModule {
     @Provides
     @Singleton
-    fun provideSearchRepository(): ISearchRepository = SearchRepository()
+    fun provideSearchRepository(): ISearchRepository =
+        SearchRepository()
 }

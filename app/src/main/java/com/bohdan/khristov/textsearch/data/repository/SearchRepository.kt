@@ -1,6 +1,5 @@
-package com.bohdan.khristov.textsearch.data
+package com.bohdan.khristov.textsearch.data.repository
 
-import android.util.Log
 import com.bohdan.khristov.textsearch.util.L
 import java.io.BufferedInputStream
 import java.io.BufferedReader
@@ -16,7 +15,7 @@ class SearchRepository : ISearchRepository {
         var urlConnection: HttpURLConnection? = null
         var result = ""
         try {
-            val url = URL("http://ephemeraltech.com/demo/android_tutorial20.php")
+            val url = URL(url)
             urlConnection = url.openConnection() as HttpURLConnection
             val code = urlConnection.responseCode
             L.log("SearchRepository", "Code = $code")

@@ -4,8 +4,11 @@ import android.util.Log
 import com.bohdan.khristov.textsearch.BuildConfig
 
 object L {
+
+    var isDebug = BuildConfig.DEBUG
+
     fun log(tag: String, msg: String) {
-        if (BuildConfig.DEBUG)
+        if (isDebug)
             Log.d(tag, msg)
     }
 }

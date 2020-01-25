@@ -19,7 +19,8 @@ allprojects {
     repositories {
         google()
         jcenter()
-        
+        maven { url 'https://jitpack.io' }
+        maven { url "https://dl.bintray.com/drummer-aidan/maven/" }
     }
 }
 
@@ -30,4 +31,6 @@ task clean(type: Delete) {
 ext {
     daggerVersion = '2.15'
     lifecycleVersion = '2.0.0'
+    androidxVersion = '1.0.0'
+    dialogVersion = "2.8.1"
 }
