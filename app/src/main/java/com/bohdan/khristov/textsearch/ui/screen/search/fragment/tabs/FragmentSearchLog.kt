@@ -12,6 +12,7 @@ import com.bohdan.khristov.textsearch.ui.screen.search.SearchViewModel
 import com.bohdan.khristov.textsearch.ui.screen.search.cell.SearchCell
 import io.techery.celladapter.CellAdapter
 import kotlinx.android.synthetic.main.fragment_search_history.*
+import androidx.recyclerview.widget.DividerItemDecoration
 
 class FragmentSearchLog : BaseFragment() {
 
@@ -32,9 +33,16 @@ class FragmentSearchLog : BaseFragment() {
         val linearLayoutManager = LinearLayoutManager(view.context)
         searchLogRv.layoutManager = linearLayoutManager
         searchLogRv.adapter = adapter
+        val dividerItemDecoration =
+            DividerItemDecoration(searchLogRv.context, linearLayoutManager.orientation)
+        searchLogRv.addItemDecoration(dividerItemDecoration)
 
         searchViewModel.searchModel.observe(this, Observer { searchModel ->
-            adapter.addItem(searchModel)
+            if (searchModel == SearchModel.empty()) {
+                adapter.items = mutableListOf<SearchModel>()
+            } else {
+                adapter.addItem(searchModel)
+            }
         })
     }
 

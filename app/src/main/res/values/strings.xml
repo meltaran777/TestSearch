@@ -13,8 +13,15 @@
     <string name="thread_count">Thread count</string>
     <string name="url_in_progress_label">URL in progress:</string>
     <string name="status_label">Search status:</string>
-    <string name="entries_label">Total text entries:</string>
+    <string name="entries_label">Total text entries: </string>
     <string name="start_search">Start search</string>
     <string name="log">Log</string>
     <string name="completed">Completed</string>
+    <string name="validation_cant_be_empty">This field can`t be empty</string>
+    <string name="validation_number">Must be positive number</string>
+    <string name="validation_url">Invalid URL</string>
+    <string name="root_url_label">Root URL:</string>
+    <string name="search_for_label">Search for:</string>
+    <string name="prepare">Prepare</string>
+    <string name="start_new_search">Start new search</string>
 </resources>

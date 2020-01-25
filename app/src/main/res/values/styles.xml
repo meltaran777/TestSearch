@@ -8,10 +8,7 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
-    <style name="SearchInputStyle">
-        <item name="android:layout_marginStart">8dp</item>
-        <item name="android:layout_marginEnd">8dp</item>
-        <item name="android:layout_marginTop">8dp</item>
+    <style name="TextStyle">
         <item name="android:textColor">@color/colorText</item>
         <item name="android:textSize">16sp</item>
     </style>
