@@ -29,6 +29,7 @@ class SearchInteractor @Inject constructor(
     @ObsoleteCoroutinesApi
     fun fullSearch(
         searchRequest: SearchRequest,
+        onStartProcessingUrl: (SearchRequest) -> Unit,
         onUrlProcessed: (SearchModel) -> Unit,
         onCompleted: () -> Unit
     ): Job {
@@ -41,17 +42,19 @@ class SearchInteractor @Inject constructor(
             currentLevel = 0
             maxUrlsCount = searchRequest.maxUrlCount
             urlsByLevel.clear()
-            search(searchRequest, onUrlProcessed, onCompleted)
+            search(searchRequest, onStartProcessingUrl, onUrlProcessed, onCompleted)
         }
     }
 
     private suspend fun search(
         searchRequest: SearchRequest,
+        onStartProcessingUrl: (SearchRequest) -> Unit,
         onUrlProcessed: (SearchModel) -> Unit,
         onCompleted: () -> Unit
     ) {
         try {
             if (currentLevel == 0) {
+                onStartProcessingUrl.invoke(searchRequest)
                 val searchResult = singleSearch(searchRequest)
                 onUrlProcessed.invoke(SearchModel(searchRequest, searchResult))
             }
@@ -60,6 +63,7 @@ class SearchInteractor @Inject constructor(
             parentUrls.forEachIndexed { index, parentUrl ->
                 if (!isSearchCompleted()) {
                     val parentRequest = searchRequest.copy(url = parentUrl)
+                    onStartProcessingUrl.invoke(parentRequest)
                     val parentResult = singleSearch(parentRequest)
                     onUrlProcessed.invoke(SearchModel(parentRequest, parentResult))
                 } else {
@@ -72,7 +76,7 @@ class SearchInteractor @Inject constructor(
             val firstUrlOnNextLevel = urlsByLevel.getValue(currentLevel).firstOrNull()
             if (firstUrlOnNextLevel != null) {
                 val request = searchRequest.copy(url = firstUrlOnNextLevel)
-                search(request, onUrlProcessed, onCompleted)
+                search(request, onStartProcessingUrl, onUrlProcessed, onCompleted)
             }
         } catch (e: Exception) {
             e.printStackTrace()

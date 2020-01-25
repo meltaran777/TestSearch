@@ -29,8 +29,8 @@ class FragmentSearch : BaseFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        searchViewModel.searchModel.observe(this, Observer { searchModel ->
-            currentUrlTv.text = searchModel.request.url
+        searchViewModel.processingUrl.observe(this, Observer { url ->
+            currentUrlTv.text = url
         })
         searchViewModel.totalEntries.observe(this, Observer { totalCount ->
             entriesCountTv.text = totalCount.toString()

@@ -15,6 +15,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
     ViewModel() {
 
     val searchModel = MutableLiveData<SearchModel>()
+    val processingUrl = MutableLiveData<String>()
     val totalEntries = MutableLiveData<Int>().default(0)
     val progress = MutableLiveData<Int>().default(0)
     val searchStatus = MutableLiveData<SearchStatus>().default(SearchStatus.PREPARE)
@@ -29,6 +30,9 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
         cleanOldResult()
         searchStatus.value = SearchStatus.IN_PROGRESS
         jobs.add(searchInteractor.fullSearch(searchRequest,
+            onStartProcessingUrl = { request ->
+                processingUrl.postValue(request.url)
+            },
             onUrlProcessed = { searchModel ->
                 val totalEntries = totalEntries.value?.plus(searchModel.result.entriesCount)
                 this.totalEntries.postValue(totalEntries)
@@ -50,6 +54,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
     private fun cleanOldResult() {
         progress.value = 0
         totalEntries.value = 0
+        processingUrl.value = ""
         searchModel.value = SearchModel.empty()
     }
 
