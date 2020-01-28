@@ -8,22 +8,26 @@ import com.bohdan.khristov.textsearch.util.L
 import com.bohdan.khristov.textsearch.util.entriesCount
 import com.bohdan.khristov.textsearch.util.extractUrls
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 
 class SearchInteractor @Inject constructor(
     private val searchRepository: ISearchRepository
 ) {
-
     private lateinit var context: CoroutineContext
+
+    private var requestCounter = AtomicInteger()
+    private var totalUrlsCounter = AtomicInteger()
+    private var processedUrlCounter = AtomicInteger()
 
     private var maxUrlsCount = 0
 
-    private var totalUrlsCounter = 0
-    private var processedUrlCounter = 0
-
     private var currentLevel = 0
-    private val urlsByLevel =
+    private var urlsByLevel =
         mutableMapOf<Int, MutableList<String>>().withDefault { mutableListOf() }
 
     @ObsoleteCoroutinesApi
@@ -37,16 +41,22 @@ class SearchInteractor @Inject constructor(
             if (searchRequest.threadCount > Runtime.getRuntime().availableProcessors() || searchRequest.threadCount <= 0)
                 Dispatchers.Default
             else newFixedThreadPoolContext(searchRequest.threadCount, "fixed-thread-pool")
+        processedUrlCounter = AtomicInteger(0)
+        requestCounter = AtomicInteger(0)
+        totalUrlsCounter = AtomicInteger(0)
+        currentLevel = 0
+        maxUrlsCount = searchRequest.maxUrlCount
+        urlsByLevel.clear()
+
         return GlobalScope.launch(context) {
-            processedUrlCounter = 0
-            currentLevel = 0
-            maxUrlsCount = searchRequest.maxUrlCount
-            urlsByLevel.clear()
-            search(searchRequest, onStartProcessingUrl, onUrlProcessed, onCompleted)
+            search(this, searchRequest, onStartProcessingUrl, onUrlProcessed, onCompleted)
         }
     }
 
+    private val mutex = Mutex()
+
     private suspend fun search(
+        scope: CoroutineScope,
         searchRequest: SearchRequest,
         onStartProcessingUrl: (SearchRequest) -> Unit,
         onUrlProcessed: (SearchModel) -> Unit,
@@ -54,62 +64,95 @@ class SearchInteractor @Inject constructor(
     ) {
         try {
             if (currentLevel == 0) {
-                onStartProcessingUrl.invoke(searchRequest)
-                val searchResult = singleSearch(searchRequest)
-                onUrlProcessed.invoke(SearchModel(searchRequest, searchResult))
+                singleSearch(scope, searchRequest, onStartProcessingUrl, onUrlProcessed)
             }
 
-            val parentUrls = urlsByLevel.getValue(currentLevel)
-            parentUrls.forEachIndexed { index, parentUrl ->
-                if (!isSearchCompleted()) {
-                    val parentRequest = searchRequest.copy(url = parentUrl)
-                    onStartProcessingUrl.invoke(parentRequest)
-                    val parentResult = singleSearch(parentRequest)
-                    onUrlProcessed.invoke(SearchModel(parentRequest, parentResult))
-                } else {
-                    onCompleted.invoke()
-                    return
+            val channel: Channel<SearchRequest> = Channel()
+            scope.launch(context) {
+                val parentUrls = urlsByLevel.getValue(currentLevel)
+                parentUrls.forEachIndexed { index, parentUrl ->
+                    if (requestCounter.get() < maxUrlsCount) {
+                        val parentRequest = searchRequest.copy(url = parentUrl)
+                        L.log("SearchDebug", "Request $requestCounter = $parentRequest")
+                        channel.send(parentRequest)
+                    }
+                    requestCounter.incrementAndGet()
                 }
+                channel.close()
             }
 
-            currentLevel += 1
-            val firstUrlOnNextLevel = urlsByLevel.getValue(currentLevel).firstOrNull()
+            val jobs = mutableListOf<Job>()
+            for (i in 0..searchRequest.threadCount) {
+                jobs.add(scope.launch(context) {
+                    for (request in channel) {
+                        singleSearch(scope, request, onStartProcessingUrl, onUrlProcessed)
+                    }
+                })
+            }
+            jobs.forEach { it.join() }
+
+            val firstUrlOnNextLevel = mutex.withLock {
+                currentLevel += 1
+                urlsByLevel.getValue(currentLevel).firstOrNull()
+            }
             if (firstUrlOnNextLevel != null) {
                 val request = searchRequest.copy(url = firstUrlOnNextLevel)
-                search(request, onStartProcessingUrl, onUrlProcessed, onCompleted)
+                search(scope, request, onStartProcessingUrl, onUrlProcessed, onCompleted)
+            } else {
+                onCompleted.invoke()
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    private fun isSearchCompleted(): Boolean {
-        return processedUrlCounter >= maxUrlsCount || totalUrlsCounter == processedUrlCounter
-    }
+    private suspend fun singleSearch(
+        scope: CoroutineScope,
+        searchRequest: SearchRequest,
+        onStartProcessingUrl: (SearchRequest) -> Unit,
+        onUrlProcessed: (SearchModel) -> Unit
+    ): SearchResult {
+        return scope.async(context) {
+            L.log("SearchDebug", "singleSearch $searchRequest")
+            mutex.withLock {
+                onStartProcessingUrl.invoke(searchRequest)
+            }
 
-    private suspend fun singleSearch(searchRequest: SearchRequest) =
-        GlobalScope.async(context) {
-            val fetchedText = searchRepository.getText(searchRequest.url)
+            val fetchedText = scope.async {
+                searchRepository.getText(searchRequest.url)
+            }.await()
+
             val textEntries = fetchedText.entriesCount(searchRequest.textToFind)
             val parentUrls = fetchedText.extractUrls()
             val searchResult = SearchResult(textEntries, parentUrls)
 
-            L.log("SearchInteractor", "currentLevel = $currentLevel")
-            L.log("SearchInteractor", "searchRequest = $searchRequest")
-            L.log("SearchInteractor", "searchResult = $searchResult")
-            L.log("SearchInteractor", "----------------------------------------------------")
-            L.log("SearchInteractor", "====================================================")
-            L.log("SearchInteractor", "----------------------------------------------------")
+            L.log("SingleSearch", "currentLevel = $currentLevel")
+            L.log("SingleSearch", "searchRequest = $searchRequest")
+            L.log("SingleSearch", "searchResult = $searchResult")
+            L.log("SingleSearch", "----------------------------------------------------")
+            L.log("SingleSearch", "====================================================")
+            L.log("SingleSearch", "----------------------------------------------------")
 
-            val nexLevel = currentLevel + 1
-            val urlOnNextLevel: MutableList<String> = urlsByLevel.getValue(nexLevel)
-            urlOnNextLevel.addAll(parentUrls)
-            urlsByLevel[nexLevel] = urlOnNextLevel
+            mutex.withLock {
+                val nexLevel = currentLevel + 1
+                val urlOnNextLevel: MutableList<String> = urlsByLevel.getValue(nexLevel)
+                urlOnNextLevel.addAll(parentUrls)
+                urlsByLevel[nexLevel] = urlOnNextLevel
+            }
 
-            processedUrlCounter += 1
-            totalUrlsCounter += 1
-            totalUrlsCounter += parentUrls.size - 1
+            processedUrlCounter.incrementAndGet()
+            totalUrlsCounter.incrementAndGet()
+            totalUrlsCounter.addAndGet(parentUrls.size - 1)
 
-            return@async searchResult
+            val searchModel = SearchModel(searchRequest, searchResult)
+            L.log("FinishSearch", "Finish search $processedUrlCounter")
+            onUrlProcessed.invoke(searchModel)
+
+            searchResult
         }.await()
+    }
+
+/*    private fun isSearchCompleted(): Boolean {
+        return processedUrlCounter >= maxUrlsCount || totalUrlsCounter == processedUrlCounter
+    }*/
 }

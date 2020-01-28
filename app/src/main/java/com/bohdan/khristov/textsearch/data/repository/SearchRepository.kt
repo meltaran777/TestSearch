@@ -35,7 +35,7 @@ class SearchRepository : ISearchRepository {
         } catch (e: IOException) {
             e.printStackTrace()
         } finally {
-            urlConnection!!.disconnect()
+            urlConnection?.disconnect()
         }
         return result
     }
