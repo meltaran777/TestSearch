@@ -5,7 +5,7 @@ import java.util.regex.Pattern
 const val URL_REGEX =
     "((https?|ftp|gopher|telnet|file):((//)|(\\\\))+[\\w\\d:#@%/;$()~_?\\+-=\\\\\\.&]*)"
 
-fun String.entriesCount(text: String): Int {
+fun String.countEntries(text: String): Int {
     return this.windowed(text.length) {
         if (it == text)
             1

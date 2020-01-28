@@ -7,13 +7,17 @@ import com.bohdan.khristov.textsearch.data.model.SearchRequest
 import com.bohdan.khristov.textsearch.data.model.SearchStatus
 import com.bohdan.khristov.textsearch.domain.SearchInteractor
 import com.bohdan.khristov.textsearch.util.default
-import kotlinx.coroutines.ObsoleteCoroutinesApi
+import kotlinx.coroutines.*
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
+import kotlin.coroutines.CoroutineContext
 
 class SearchViewModel @Inject constructor(private val searchInteractor: SearchInteractor) :
-    ViewModel() {
+    ViewModel(), CoroutineScope {
+
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.Main + job
 
     val processingUrl = MutableLiveData<String>()
     val searchModels = MutableLiveData<MutableList<SearchModel>>()
@@ -21,33 +25,45 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
     val progress = MutableLiveData<Int>().default(0)
     val searchStatus = MutableLiveData<SearchStatus>().default(SearchStatus.PREPARE)
 
+    private val job = Job()
+
     private val totalEntriesAtomic = AtomicInteger(0)
     private val progressAtomic = AtomicInteger(0)
     private var models = Collections.synchronizedList(mutableListOf<SearchModel>())
 
     @ObsoleteCoroutinesApi
     fun search(searchRequest: SearchRequest) {
-        if (searchStatus.value == SearchStatus.IN_PROGRESS) {
-            stopSearch()
+        launch {
+            if (searchStatus.value == SearchStatus.IN_PROGRESS) {
+                stopSearch()
+            }
+            cleanOldResult()
+            searchStatus.value = SearchStatus.IN_PROGRESS
+            searchInteractor.search1(searchRequest)
+
+            launch {
+                for (request in searchInteractor.receiveRequest()) {
+                    processingUrl.postValue(request.url)
+                }
+            }
+            launch {
+                for (model in searchInteractor.receiveResult()) {
+                    totalEntriesAtomic.addAndGet(model.result.entriesCount)
+                    this@SearchViewModel.totalEntries.postValue(totalEntriesAtomic.toInt())
+
+                    progressAtomic.incrementAndGet()
+                    progress.postValue(progressAtomic.toInt())
+
+                    models.add(model)
+                    this@SearchViewModel.searchModels.postValue(models)
+                }
+            }
+            launch {
+                for (status in searchInteractor.receiveStatus()) {
+                    searchStatus.postValue(SearchStatus.COMPLETED)
+                }
+            }
         }
-        cleanOldResult()
-        searchStatus.value = SearchStatus.IN_PROGRESS
-        searchInteractor.search1(searchRequest,
-            onStartProcessingUrl = { request ->
-                processingUrl.postValue(request.url)
-            },
-            onUrlProcessed = { searchModel ->
-                totalEntriesAtomic.addAndGet(searchModel.result.entriesCount)
-                this@SearchViewModel.totalEntries.postValue(totalEntriesAtomic.toInt())
-
-                progressAtomic.incrementAndGet()
-                progress.postValue(progressAtomic.toInt())
-
-                models.add(searchModel)
-                this@SearchViewModel.searchModels.postValue(models)
-            }, onCompleted = {
-                searchStatus.postValue(SearchStatus.COMPLETED)
-            })
     }
 
     fun stopSearch() {
@@ -67,6 +83,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
 
     override fun onCleared() {
         stopSearch()
+        coroutineContext.cancelChildren()
         super.onCleared()
     }
 }
