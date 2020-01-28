@@ -41,16 +41,14 @@ class SearchInteractor @Inject constructor(
         onStartProcessingUrl: (SearchRequest) -> Unit,
         onUrlProcessed: (SearchModel) -> Unit,
         onCompleted: () -> Unit
-    ): Job {
-
+    ) {
         processedUrlCounter = AtomicInteger(0)
         requestCounter = AtomicInteger(0)
         totalUrlsCounter = AtomicInteger(0)
         currentLevel = 0
         maxUrlsCount = searchRequest.maxUrlCount
         urlsByLevel.clear()
-
-        return launch {
+        launch {
             search(searchRequest, onStartProcessingUrl, onUrlProcessed, onCompleted)
         }
     }

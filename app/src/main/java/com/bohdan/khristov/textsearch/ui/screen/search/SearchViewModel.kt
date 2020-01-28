@@ -7,7 +7,6 @@ import com.bohdan.khristov.textsearch.data.model.SearchRequest
 import com.bohdan.khristov.textsearch.data.model.SearchStatus
 import com.bohdan.khristov.textsearch.domain.SearchInteractor
 import com.bohdan.khristov.textsearch.util.default
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.ObsoleteCoroutinesApi
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
@@ -24,8 +23,6 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
 
     private val totalEntriesAtomic = AtomicInteger(0)
     private val progressAtomic = AtomicInteger(0)
-
-    private val jobs = mutableListOf<Job>()
     private var models = Collections.synchronizedList(mutableListOf<SearchModel>())
 
     @ObsoleteCoroutinesApi
@@ -35,7 +32,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
         }
         cleanOldResult()
         searchStatus.value = SearchStatus.IN_PROGRESS
-        val job = searchInteractor.search1(searchRequest,
+        searchInteractor.search1(searchRequest,
             onStartProcessingUrl = { request ->
                 processingUrl.postValue(request.url)
             },
@@ -51,7 +48,6 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
             }, onCompleted = {
                 searchStatus.postValue(SearchStatus.COMPLETED)
             })
-        jobs.add(job)
     }
 
     fun stopSearch() {
@@ -69,12 +65,8 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
         searchModels.value = mutableListOf()
     }
 
-    private fun cancelJobs() {
-        jobs.forEach { it.cancel(); }
-    }
-
     override fun onCleared() {
-        cancelJobs()
+        stopSearch()
         super.onCleared()
     }
 }
