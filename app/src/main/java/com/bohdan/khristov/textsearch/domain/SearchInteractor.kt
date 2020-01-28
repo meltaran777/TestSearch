@@ -128,35 +128,34 @@ class SearchInteractor @Inject constructor(
     }
 
     private suspend fun singleSearch(searchRequest: SearchRequest): SearchResult {
-        return async {
-            withTimeout(10_000) {
-                val fetchedText = async { searchRepository.getText(searchRequest.url) }.await()
-                val entriesCount = fetchedText.countEntries(searchRequest.textToFind)
-                val parentUrls = fetchedText.extractUrls()
-                val searchResult = SearchResult(entriesCount, parentUrls)
+        return withTimeout(10_000) {
+            val fetchedText = searchRepository.getText(searchRequest.url)
+            val entriesCount = fetchedText.countEntries(searchRequest.textToFind)
+            val parentUrls = fetchedText.extractUrls()
+            val searchResult = SearchResult(entriesCount, parentUrls)
 
-                L.log("SingleSearch", "currentLevel = $currentLevel")
-                L.log("SingleSearch", "searchRequest = $searchRequest")
-                L.log("SingleSearch", "searchResult = $searchResult")
-                L.log("SingleSearch", "----------------------------------------------------")
-                L.log("SingleSearch", "====================================================")
-                L.log("SingleSearch", "----------------------------------------------------")
+            L.log("SingleSearch", "currentLevel = $currentLevel")
+            L.log("SingleSearch", "searchRequest = $searchRequest")
+            L.log("SingleSearch", "searchResult = $searchResult")
+            L.log("SingleSearch", "----------------------------------------------------")
+            L.log("SingleSearch", "====================================================")
+            L.log("SingleSearch", "----------------------------------------------------")
 
-                mutex.withLock {
-                    val nexLevel = currentLevel + 1
-                    val urlOnNextLevel: MutableList<String> = urlsByLevel.getValue(nexLevel)
-                    urlOnNextLevel.addAll(parentUrls)
-                    urlsByLevel[nexLevel] = urlOnNextLevel
-                }
-
-                processedUrlCounter.incrementAndGet()
-                totalUrlsCounter.incrementAndGet()
-                totalUrlsCounter.addAndGet(parentUrls.size - 1)
-
-                searchResult
+            mutex.withLock {
+                val nexLevel = currentLevel + 1
+                val urlOnNextLevel: MutableList<String> = urlsByLevel.getValue(nexLevel)
+                urlOnNextLevel.addAll(parentUrls)
+                urlsByLevel[nexLevel] = urlOnNextLevel
             }
-        }.await()
+
+            processedUrlCounter.incrementAndGet()
+            totalUrlsCounter.incrementAndGet()
+            totalUrlsCounter.addAndGet(parentUrls.size - 1)
+
+            searchResult
+        }
     }
+
 
 /*    private fun isSearchCompleted(): Boolean {
         return processedUrlCounter >= maxUrlsCount || totalUrlsCounter == processedUrlCounter
