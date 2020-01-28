@@ -47,14 +47,14 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
                 }
             }
             launch {
-                for (model in searchInteractor.receiveResult()) {
-                    totalEntriesAtomic.addAndGet(model.result.entriesCount)
+                for (result in searchInteractor.receiveResult()) {
+                    totalEntriesAtomic.addAndGet(result.result.entriesCount)
                     this@SearchViewModel.totalEntries.postValue(totalEntriesAtomic.toInt())
 
                     progressAtomic.incrementAndGet()
                     progress.postValue(progressAtomic.toInt())
 
-                    models.add(model)
+                    models.add(result)
                     this@SearchViewModel.searchModels.postValue(models)
                 }
             }

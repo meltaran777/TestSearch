@@ -1,11 +1,7 @@
 package com.bohdan.khristov.textsearch.domain
 
-import com.bohdan.khristov.textsearch.data.model.SearchModel
-import com.bohdan.khristov.textsearch.data.model.SearchRequest
-import com.bohdan.khristov.textsearch.data.model.SearchResult
-import com.bohdan.khristov.textsearch.data.model.SearchStatus
+import com.bohdan.khristov.textsearch.data.model.*
 import com.bohdan.khristov.textsearch.data.repository.ISearchRepository
-import com.bohdan.khristov.textsearch.util.L
 import com.bohdan.khristov.textsearch.util.countEntries
 import com.bohdan.khristov.textsearch.util.extractUrls
 import kotlinx.coroutines.*
@@ -13,9 +9,10 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
+
+const val URL_PROCESS_TIMEOUT = 10_000L
 
 class SearchInteractor @Inject constructor(
     private val searchRepository: ISearchRepository
@@ -31,15 +28,7 @@ class SearchInteractor @Inject constructor(
     private var processedRequestChannel = Channel<SearchModel>()
     private var statusChannel = Channel<SearchStatus>()
 
-    private var requestCounter = AtomicInteger()
-    private var totalUrlsCounter = AtomicInteger()
-    private var processedUrlCounter = AtomicInteger()
-
-    private var maxUrlsCount = 0
-
-    private var currentLevel = 0
-    private var urlsByLevel =
-        mutableMapOf<Int, MutableList<String>>().withDefault { mutableListOf() }
+    private lateinit var cache: SearchCache
 
     @ObsoleteCoroutinesApi
     fun search1(searchRequest: SearchRequest) {
@@ -47,15 +36,77 @@ class SearchInteractor @Inject constructor(
         processedRequestChannel = Channel()
         statusChannel = Channel()
 
-        processedUrlCounter = AtomicInteger(0)
-        requestCounter = AtomicInteger(0)
-        totalUrlsCounter = AtomicInteger(0)
+        cache = SearchCache(searchRequest)
 
-        currentLevel = 0
-        maxUrlsCount = searchRequest.maxUrlCount
-        urlsByLevel.clear()
-        launch {
-            search(searchRequest)
+        launch { search(searchRequest) }
+    }
+
+    private suspend fun search(rootRequest: SearchRequest) {
+        try {
+            val channel: Channel<SearchRequest> = Channel()
+            launch {
+                val childUrls = cache.getCurrentLevelUrls()
+                childUrls.forEachIndexed { index, childUrl ->
+                    if (cache.isSendRequestEnable()) {
+                        val childRequest = rootRequest.copy(url = childUrl)
+                        channel.send(childRequest)
+                    }
+                    cache.incRequest()
+                }
+                channel.close()
+            }
+
+            val jobs = mutableListOf<Job>()
+            for (i in 0..rootRequest.threadCount) {
+                jobs.add(launch {
+                    for (searchRequest in channel) {
+                        launch {
+                            if (!processingRequestChannel.isClosedForSend)
+                                processingRequestChannel.send(searchRequest)
+                        }
+                        val searchResult = singleSearch(searchRequest)
+                        val searchModel = SearchModel(searchRequest, searchResult)
+                        launch {
+                            if (!processedRequestChannel.isClosedForSend)
+                                processedRequestChannel.send(searchModel)
+                        }
+                    }
+                })
+            }
+            jobs.forEach { it.join() }
+
+            val firstUrlOnNextLevel = mutex.withLock { cache.getNextLevelUrls().firstOrNull() }
+            when (firstUrlOnNextLevel != null) {
+                true -> {
+                    cache.incLevel()
+                    val searchRequest = rootRequest.copy(url = firstUrlOnNextLevel)
+                    search(searchRequest)
+                }
+                false -> {
+                    launch {
+                        if (!statusChannel.isClosedForSend)
+                            statusChannel.send(SearchStatus.COMPLETED)
+                        processingRequestChannel.close()
+                        processedRequestChannel.close()
+                        statusChannel.close()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private suspend fun singleSearch(searchRequest: SearchRequest): SearchResult {
+        return withTimeout(URL_PROCESS_TIMEOUT) {
+            val fetchedText = searchRepository.getText(searchRequest.url)
+            val entriesCount = async { fetchedText.countEntries(searchRequest.textToFind) }
+            val parentUrls = async { fetchedText.extractUrls() }
+            val searchResult = SearchResult(entriesCount.await(), parentUrls.await())
+            mutex.withLock {
+                cache.addNextLevelUrls(searchResult.parentUrls)
+            }
+            searchResult
         }
     }
 
@@ -71,93 +122,4 @@ class SearchInteractor @Inject constructor(
     fun receiveResult(): ReceiveChannel<SearchModel> = processedRequestChannel
 
     fun receiveStatus(): ReceiveChannel<SearchStatus> = statusChannel
-
-    private suspend fun search(request: SearchRequest) {
-        try {
-            if (currentLevel == 0) {
-                launch { processingRequestChannel.send(request) }
-                val result = singleSearch(request)
-                val model = SearchModel(request, result)
-                launch { processedRequestChannel.send(model) }
-            }
-
-            val channel: Channel<SearchRequest> = Channel()
-            launch {
-                val parentUrls = urlsByLevel.getValue(currentLevel)
-                parentUrls.forEachIndexed { index, parentUrl ->
-                    if (requestCounter.get() < maxUrlsCount) {
-                        val parentRequest = request.copy(url = parentUrl)
-                        channel.send(parentRequest)
-                    }
-                    requestCounter.incrementAndGet()
-                }
-                channel.close()
-            }
-
-            val jobs = mutableListOf<Job>()
-            for (i in 0..request.threadCount) {
-                jobs.add(launch {
-                    for (searchRequest in channel) {
-                        launch { processingRequestChannel.send(searchRequest) }
-                        val searchResult = singleSearch(searchRequest)
-                        val searchModel = SearchModel(searchRequest, searchResult)
-                        launch { processedRequestChannel.send(searchModel) }
-                    }
-                })
-            }
-            jobs.forEach { it.join() }
-
-            val firstUrlOnNextLevel = mutex.withLock {
-                currentLevel += 1
-                urlsByLevel.getValue(currentLevel).firstOrNull()
-            }
-            if (firstUrlOnNextLevel != null) {
-                val searchRequest = request.copy(url = firstUrlOnNextLevel)
-                search(searchRequest)
-            } else {
-                launch {
-                    statusChannel.send(SearchStatus.COMPLETED)
-                    processingRequestChannel.close()
-                    processedRequestChannel.close()
-                    statusChannel.close()
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private suspend fun singleSearch(searchRequest: SearchRequest): SearchResult {
-        return withTimeout(10_000) {
-            val fetchedText = searchRepository.getText(searchRequest.url)
-            val entriesCount = fetchedText.countEntries(searchRequest.textToFind)
-            val parentUrls = fetchedText.extractUrls()
-            val searchResult = SearchResult(entriesCount, parentUrls)
-
-            L.log("SingleSearch", "currentLevel = $currentLevel")
-            L.log("SingleSearch", "searchRequest = $searchRequest")
-            L.log("SingleSearch", "searchResult = $searchResult")
-            L.log("SingleSearch", "----------------------------------------------------")
-            L.log("SingleSearch", "====================================================")
-            L.log("SingleSearch", "----------------------------------------------------")
-
-            mutex.withLock {
-                val nexLevel = currentLevel + 1
-                val urlOnNextLevel: MutableList<String> = urlsByLevel.getValue(nexLevel)
-                urlOnNextLevel.addAll(parentUrls)
-                urlsByLevel[nexLevel] = urlOnNextLevel
-            }
-
-            processedUrlCounter.incrementAndGet()
-            totalUrlsCounter.incrementAndGet()
-            totalUrlsCounter.addAndGet(parentUrls.size - 1)
-
-            searchResult
-        }
-    }
-
-
-/*    private fun isSearchCompleted(): Boolean {
-        return processedUrlCounter >= maxUrlsCount || totalUrlsCounter == processedUrlCounter
-    }*/
 }
