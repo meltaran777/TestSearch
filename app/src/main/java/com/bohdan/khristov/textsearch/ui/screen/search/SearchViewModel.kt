@@ -6,7 +6,6 @@ import com.bohdan.khristov.textsearch.data.model.SearchModel
 import com.bohdan.khristov.textsearch.data.model.SearchRequest
 import com.bohdan.khristov.textsearch.data.model.SearchStatus
 import com.bohdan.khristov.textsearch.domain.SearchInteractor
-import com.bohdan.khristov.textsearch.util.L
 import com.bohdan.khristov.textsearch.util.default
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ObsoleteCoroutinesApi
@@ -28,7 +27,6 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
 
     private val jobs = mutableListOf<Job>()
     private var models = Collections.synchronizedList(mutableListOf<SearchModel>())
-    private val modelsSimple = mutableListOf<SearchModel>()
 
     @ObsoleteCoroutinesApi
     fun search(searchRequest: SearchRequest) {
@@ -37,7 +35,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
         }
         cleanOldResult()
         searchStatus.value = SearchStatus.IN_PROGRESS
-        val job = searchInteractor.fullSearch(searchRequest,
+        val job = searchInteractor.search1(searchRequest,
             onStartProcessingUrl = { request ->
                 processingUrl.postValue(request.url)
             },
@@ -45,14 +43,10 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
                 totalEntriesAtomic.addAndGet(searchModel.result.entriesCount)
                 this@SearchViewModel.totalEntries.postValue(totalEntriesAtomic.toInt())
 
-                L.log("SearchViewModel", "progress = ${progress.value}")
                 progressAtomic.incrementAndGet()
                 progress.postValue(progressAtomic.toInt())
 
                 models.add(searchModel)
-                modelsSimple.add(searchModel)
-                L.log("ListDebug","Size = ${models.size}")
-                L.log("ListDebug","SizeSimple = ${modelsSimple.size}")
                 this@SearchViewModel.searchModels.postValue(models)
             }, onCompleted = {
                 searchStatus.postValue(SearchStatus.COMPLETED)
@@ -61,8 +55,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
     }
 
     fun stopSearch() {
-        L.log("SearchDebug", "Stop")
-        cancelJobs()
+        searchInteractor.stop()
         searchStatus.value = SearchStatus.COMPLETED
     }
 
