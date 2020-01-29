@@ -1,19 +1,16 @@
 package com.bohdan.khristov.textsearch.domain
 
-import com.bohdan.khristov.textsearch.data.model.SearchModel
-import com.bohdan.khristov.textsearch.data.model.SearchRequest
-import com.bohdan.khristov.textsearch.data.model.SearchResult
-import com.bohdan.khristov.textsearch.data.model.SearchStatus
+import com.bohdan.khristov.textsearch.data.model.*
 import com.bohdan.khristov.textsearch.data.repository.ISearchRepository
 import com.bohdan.khristov.textsearch.util.countEntries
 import com.bohdan.khristov.textsearch.util.extractUrls
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.channels.produce
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 
-const val URL_PROCESS_TIMEOUT = 10_000L
+const val REQUEST_PROCESS_TIMEOUT = 10_000L
 
 class SearchInteractor @Inject constructor(private val searchRepository: ISearchRepository) :
     CoroutineScope {
@@ -27,51 +24,48 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
 
     @ObsoleteCoroutinesApi
     fun search(searchRequest: SearchRequest) {
-        state = SearchState(this, rootRequest = searchRequest)
-        launch { wideSearch(searchRequest) }
+        if (state?.status == SearchStatus.IN_PROGRESS) {
+            close()
+        }
+        launch {
+            state = SearchState(rootRequest = searchRequest)
+            state!!.changeStatus(SearchStatus.IN_PROGRESS)
+            wideSearch(searchRequest)
+        }
     }
 
-    private suspend fun wideSearch(request: SearchRequest) {
+    private suspend fun wideSearch(rootRequest: SearchRequest) {
         try {
-            val channel: Channel<SearchRequest> = Channel()
-            launch {
-                val childUrls = state!!.getCurrentLevelUrls()
-                childUrls.forEachIndexed { index, childUrl ->
+            val requestChannel = produce {
+                for (request in state!!.getCurrentLevelRequests()) {
                     if (state!!.isSendRequestEnable()) {
-                        val childRequest = request.copy(url = childUrl)
-                        channel.send(childRequest)
-                        state!!.incRequest()
+                        send(request)
+                        state!!.incRequestCounter()
                     }
                 }
-                channel.close()
             }
 
             val jobs = mutableListOf<Job>()
-            for (i in 0..request.threadCount) {
+            for (i in 0..rootRequest.threadCount) {
                 jobs.add(launch {
-                    for (childRequest in channel) {
-                        state!!.addProcessingRequest(childRequest)
-                        val childResult = singleSearch(childRequest)
-                        if (childResult != null) {
-                            val childModel = SearchModel(childRequest, childResult)
-                            state!!.addSearchResult(childModel)
-                        } else {
-                            state!!.decRequest()
-                        }
+                    for (request in requestChannel) {
+                        state!!.addInProgressRequest(request)
+                        val result = singleSearch(request) ?: SearchResult.empty()
+                        state!!.addSearchResult(SearchModel(request, result))
                     }
                 })
             }
             jobs.forEach { it.join() }
 
-            val firstUrlOnNextLevel = state!!.getNextLevelUrls().firstOrNull()
-            when (firstUrlOnNextLevel != null) {
+            val firstRequestOnNextLevel = state!!.getNextLevelRequests().firstOrNull()
+            when (firstRequestOnNextLevel != null) {
                 true -> {
                     state!!.incLevel()
-                    val searchRequest = request.copy(url = firstUrlOnNextLevel)
-                    wideSearch(searchRequest)
+                    wideSearch(firstRequestOnNextLevel)
                 }
                 false -> {
                     state!!.changeStatus(SearchStatus.COMPLETED)
+                    state!!.close()
                 }
             }
         } catch (e: Exception) {
@@ -80,7 +74,7 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
     }
 
     private suspend fun singleSearch(searchRequest: SearchRequest): SearchResult? {
-        return withTimeoutOrNull(URL_PROCESS_TIMEOUT) {
+        return withTimeoutOrNull(REQUEST_PROCESS_TIMEOUT) {
             val fetchedText = searchRepository.getText(searchRequest.url)
             val entriesCount = async { fetchedText.countEntries(searchRequest.textToFind) }
             val parentUrls = async { fetchedText.extractUrls() }
@@ -89,13 +83,20 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
         }
     }
 
-    fun receiveRequest(): ReceiveChannel<SearchRequest> = state!!.processingRequestChannel
+    fun receiveInProgressRequests(): ReceiveChannel<List<SearchRequest>> =
+        state!!.inProgressRequestsChannel
 
-    fun receiveResult(): ReceiveChannel<SearchModel> = state!!.processedRequestChannel
+    fun receiveInfo(): ReceiveChannel<SearchInfo> = state!!.infoChannel
 
     fun receiveStatus(): ReceiveChannel<SearchStatus> = state!!.statusChannel
 
-    fun stop() {
+    suspend fun stop() {
+        state?.changeStatus(SearchStatus.COMPLETED)
+        close()
+    }
+
+    private fun close() {
+        state?.close()
         coroutineContext.cancelChildren()
     }
 }

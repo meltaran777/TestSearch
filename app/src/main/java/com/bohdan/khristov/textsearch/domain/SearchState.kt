@@ -1,117 +1,123 @@
 package com.bohdan.khristov.textsearch.domain
 
-import com.bohdan.khristov.textsearch.data.model.SearchInfo
-import com.bohdan.khristov.textsearch.data.model.SearchModel
-import com.bohdan.khristov.textsearch.data.model.SearchRequest
-import com.bohdan.khristov.textsearch.data.model.SearchStatus
+import com.bohdan.khristov.textsearch.data.model.*
 import com.bohdan.khristov.textsearch.util.safeSend
-import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
-class SearchState(scope: CoroutineScope, val rootRequest: SearchRequest) :
-    CoroutineScope by scope {
+class SearchState(val rootRequest: SearchRequest) {
 
-    val processingRequestChannel = Channel<SearchRequest>()
-    val processedRequestChannel = Channel<SearchModel>()
+    val inProgressRequestsChannel = Channel<List<SearchRequest>>()
+    val infoChannel = Channel<SearchInfo>()
     val statusChannel = Channel<SearchStatus>()
+
+    var status = SearchStatus.PREPARE
+        private set
 
     private val mutex = Mutex()
 
-    private var status = SearchStatus.IN_PROGRESS
-
     private val requestCounter: AtomicInteger = AtomicInteger(0)
-    private val totalUrlsCounter: AtomicInteger = AtomicInteger(0)
-    private val processedUrlCounter: AtomicInteger = AtomicInteger(0)
-    private val currentLevel: AtomicInteger = AtomicInteger(0)
+    private val totalRequestCounter: AtomicInteger = AtomicInteger(0)
+    private val processedRequestCounter: AtomicInteger = AtomicInteger(0)
 
-    private val urlsByLevel: MutableMap<Int, MutableList<String>> =
-        mutableMapOf<Int, MutableList<String>>().withDefault { mutableListOf() }
+    private val currentLevel: AtomicInteger = AtomicInteger(0)
+    private val requestsByLevel: MutableMap<Int, MutableList<SearchRequest>> =
+        mutableMapOf<Int, MutableList<SearchRequest>>().withDefault { mutableListOf() }
+
+    private val totalEntries = AtomicInteger(0)
+    private val progress = AtomicInteger(0)
+    private var processedRequests = Collections.synchronizedList(mutableListOf<SearchModel>())
+    private var inProgressRequests = Collections.synchronizedList(mutableListOf<SearchRequest>())
 
     init {
-        val urls = urlsByLevel.getValue(currentLevel.get())
-        urls.add(rootRequest.url)
-        urlsByLevel[currentLevel.get()] = urls
+        val urls = requestsByLevel.getValue(currentLevel.get())
+        urls.add(rootRequest)
+        requestsByLevel[currentLevel.get()] = urls
     }
 
-    suspend fun addProcessingRequest(searchRequest: SearchRequest) {
-        processingRequestChannel.safeSend(searchRequest)
+    suspend fun addInProgressRequest(searchRequest: SearchRequest) {
+        mutex.withLock {
+            inProgressRequests.add(searchRequest)
+            inProgressRequestsChannel.safeSend(inProgressRequests)
+        }
     }
 
     suspend fun addSearchResult(result: SearchModel) {
-        addNextLevelUrls(result.result.parentUrls)
-        processedRequestChannel.safeSend(result)
-        if (isSearchCompleted()) {
-            changeStatus(SearchStatus.COMPLETED)
+        if (result.result == SearchResult.empty()) {
+            requestCounter.decrementAndGet()
+            return
+        }
+        mutex.withLock {
+            inProgressRequests.remove(result.request)
+            inProgressRequestsChannel.safeSend(inProgressRequests)
+
+            addNextLevelRequests(result.result.parentUrls.map { rootRequest.copy(url = it) })
+
+            totalEntries.addAndGet(result.result.entriesCount)
+            progress.incrementAndGet()
+            processedRequests.add(result)
+
+            infoChannel.safeSend(getInfo())
+
+            if (isSearchCompleted()) {
+                changeStatus(SearchStatus.COMPLETED)
+            }
         }
     }
 
-    private suspend fun addNextLevelUrls(parentUrls: List<String>) {
-         mutex.withLock {
-            val nexLevel = currentLevel.get() + 1
-            val urlOnNextLevel = urlsByLevel.getValue(nexLevel)
-            urlOnNextLevel.addAll(parentUrls)
-            urlsByLevel[nexLevel] = urlOnNextLevel
+    private fun addNextLevelRequests(requests: List<SearchRequest>) {
+        val nexLevel = currentLevel.get() + 1
+        val requestsOnNextLevel = requestsByLevel.getValue(nexLevel)
+        requestsOnNextLevel.addAll(requests)
+        requestsByLevel[nexLevel] = requestsOnNextLevel
 
-            processedUrlCounter.incrementAndGet()
-            totalUrlsCounter.incrementAndGet()
-            totalUrlsCounter.addAndGet(parentUrls.size - 1)
-        }
+        processedRequestCounter.incrementAndGet()
+        totalRequestCounter.incrementAndGet()
+        totalRequestCounter.addAndGet(requests.size - 1)
     }
 
     private fun isSearchCompleted(): Boolean {
-        return processedUrlCounter.get() >= rootRequest.maxUrlCount || totalUrlsCounter.get() == processedUrlCounter.get()
+        return processedRequestCounter.get() >= rootRequest.maxUrlCount || totalRequestCounter.get() == processedRequestCounter.get()
+    }
+
+    private fun getInfo(): SearchInfo {
+        return SearchInfo(
+            progress = progress.get(),
+            entriesCount = totalEntries.get(),
+            processedRequests = processedRequests
+        )
     }
 
     suspend fun changeStatus(status: SearchStatus) {
         this@SearchState.status = status
         statusChannel.safeSend(status)
-        if (status == SearchStatus.COMPLETED) {
-            close()
-        }
     }
 
-    fun getInfo(): SearchInfo {
-        return SearchInfo(0, 0, listOf())
-    }
-
-    suspend fun getCurrentLevelUrls(): MutableList<String> {
+    suspend fun getCurrentLevelRequests(): List<SearchRequest> {
         return mutex.withLock {
-            urlsByLevel.getValue(currentLevel.get())
+            requestsByLevel.getValue(currentLevel.get())
         }
     }
 
-    suspend fun getNextLevelUrls(): MutableList<String> {
+    suspend fun getNextLevelRequests(): List<SearchRequest> {
         return mutex.withLock {
             val nextLevel = currentLevel.get() + 1
-            urlsByLevel.getValue(nextLevel)
+            requestsByLevel.getValue(nextLevel)
         }
     }
-
-    fun getLevel() = currentLevel.get()
 
     fun isSendRequestEnable(): Boolean = requestCounter.get() < rootRequest.maxUrlCount
 
-    fun incRequest() = requestCounter.incrementAndGet()
+    fun incRequestCounter() = requestCounter.incrementAndGet()
 
     fun incLevel() = currentLevel.incrementAndGet()
 
-    fun clean() {
-        processedUrlCounter.set(0)
-        requestCounter.set(0)
-        totalUrlsCounter.set(0)
-        currentLevel.set(0)
-        urlsByLevel.clear()
-    }
-
     fun close() {
-        processingRequestChannel.close()
-        processedRequestChannel.close()
+        inProgressRequestsChannel.close()
+        infoChannel.close()
         statusChannel.close()
     }
-
-    fun decRequest() = requestCounter.decrementAndGet()
-
 }

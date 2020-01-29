@@ -12,9 +12,7 @@ import com.bohdan.khristov.textsearch.ui.dialogs.IDialog
 import com.bohdan.khristov.textsearch.ui.screen.search.SearchViewModel
 import com.bohdan.khristov.textsearch.util.toggleVisibility
 import kotlinx.android.synthetic.main.fragment_search.*
-import kotlinx.coroutines.ObsoleteCoroutinesApi
 
-@ObsoleteCoroutinesApi
 class FragmentSearch : BaseFragment() {
 
     private var createSearchDialog: IDialog? = null
@@ -32,7 +30,7 @@ class FragmentSearch : BaseFragment() {
         searchViewModel.processingUrl.observe(this, Observer { url ->
             currentUrlTv.text = url
         })
-        searchViewModel.totalEntries.observe(this, Observer { totalCount ->
+        searchViewModel.entriesCount.observe(this, Observer { totalCount ->
             entriesCountTv.text = totalCount.toString()
         })
         searchViewModel.progress.observe(this, Observer { progress ->
@@ -63,7 +61,7 @@ class FragmentSearch : BaseFragment() {
             createSearchDialog?.show()
         }
         stopBtn.setOnClickListener {
-            searchViewModel.stopSearch()
+            searchViewModel.stop()
         }
     }
 

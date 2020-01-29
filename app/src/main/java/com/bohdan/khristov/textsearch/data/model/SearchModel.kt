@@ -4,10 +4,10 @@ data class SearchModel(
     val request: SearchRequest,
     val result: SearchResult
 ) {
-    companion object{
+    companion object {
         fun empty(): SearchModel = SearchModel(
-            SearchRequest("", "", -1, -1),
-            SearchResult(-1, listOf())
+            SearchRequest.empty(),
+            SearchResult.empty()
         )
     }
 }
