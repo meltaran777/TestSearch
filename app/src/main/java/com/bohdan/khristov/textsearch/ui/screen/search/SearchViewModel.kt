@@ -39,7 +39,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
             }
             cleanOldResult()
             searchStatus.value = SearchStatus.IN_PROGRESS
-            searchInteractor.search1(searchRequest)
+            searchInteractor.search(searchRequest)
 
             launch {
                 for (request in searchInteractor.receiveRequest()) {
@@ -60,7 +60,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
             }
             launch {
                 for (status in searchInteractor.receiveStatus()) {
-                    searchStatus.postValue(SearchStatus.COMPLETED)
+                    searchStatus.postValue(status)
                 }
             }
         }
