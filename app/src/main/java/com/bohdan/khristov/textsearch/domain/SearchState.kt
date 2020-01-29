@@ -1,14 +1,14 @@
 package com.bohdan.khristov.textsearch.domain
 
+import com.bohdan.khristov.textsearch.data.model.SearchInfo
 import com.bohdan.khristov.textsearch.data.model.SearchModel
 import com.bohdan.khristov.textsearch.data.model.SearchRequest
 import com.bohdan.khristov.textsearch.data.model.SearchStatus
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import com.bohdan.khristov.textsearch.util.safeSend
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicInteger
 
 class SearchState(scope: CoroutineScope, val rootRequest: SearchRequest) :
@@ -19,6 +19,8 @@ class SearchState(scope: CoroutineScope, val rootRequest: SearchRequest) :
     val statusChannel = Channel<SearchStatus>()
 
     private val mutex = Mutex()
+
+    private var status = SearchStatus.IN_PROGRESS
 
     private val requestCounter: AtomicInteger = AtomicInteger(0)
     private val totalUrlsCounter: AtomicInteger = AtomicInteger(0)
@@ -34,35 +36,57 @@ class SearchState(scope: CoroutineScope, val rootRequest: SearchRequest) :
         urlsByLevel[currentLevel.get()] = urls
     }
 
+    suspend fun addProcessingRequest(searchRequest: SearchRequest) {
+        processingRequestChannel.safeSend(searchRequest)
+    }
+
+    suspend fun addSearchResult(result: SearchModel) {
+        addNextLevelUrls(result.result.parentUrls)
+        processedRequestChannel.safeSend(result)
+        if (isSearchCompleted()) {
+            changeStatus(SearchStatus.COMPLETED)
+        }
+    }
+
+    private suspend fun addNextLevelUrls(parentUrls: List<String>) {
+         mutex.withLock {
+            val nexLevel = currentLevel.get() + 1
+            val urlOnNextLevel = urlsByLevel.getValue(nexLevel)
+            urlOnNextLevel.addAll(parentUrls)
+            urlsByLevel[nexLevel] = urlOnNextLevel
+
+            processedUrlCounter.incrementAndGet()
+            totalUrlsCounter.incrementAndGet()
+            totalUrlsCounter.addAndGet(parentUrls.size - 1)
+        }
+    }
+
+    private fun isSearchCompleted(): Boolean {
+        return processedUrlCounter.get() >= rootRequest.maxUrlCount || totalUrlsCounter.get() == processedUrlCounter.get()
+    }
+
+    suspend fun changeStatus(status: SearchStatus) {
+        this@SearchState.status = status
+        statusChannel.safeSend(status)
+        if (status == SearchStatus.COMPLETED) {
+            close()
+        }
+    }
+
+    fun getInfo(): SearchInfo {
+        return SearchInfo(0, 0, listOf())
+    }
+
     suspend fun getCurrentLevelUrls(): MutableList<String> {
-        return withContext(Dispatchers.Default) {
-            mutex.withLock {
-                urlsByLevel.getValue(currentLevel.get())
-            }
+        return mutex.withLock {
+            urlsByLevel.getValue(currentLevel.get())
         }
     }
 
     suspend fun getNextLevelUrls(): MutableList<String> {
-        return withContext(Dispatchers.Default) {
-            mutex.withLock {
-                val nextLevel = currentLevel.get() + 1
-                urlsByLevel.getValue(nextLevel)
-            }
-        }
-    }
-
-    suspend fun addNextLevelUrls(parentUrls: List<String>) {
-        withContext(Dispatchers.Default) {
-            mutex.withLock {
-                val nexLevel = currentLevel.get() + 1
-                val urlOnNextLevel = urlsByLevel.getValue(nexLevel)
-                urlOnNextLevel.addAll(parentUrls)
-                urlsByLevel[nexLevel] = urlOnNextLevel
-
-                processedUrlCounter.incrementAndGet()
-                totalUrlsCounter.incrementAndGet()
-                totalUrlsCounter.addAndGet(parentUrls.size - 1)
-            }
+        return mutex.withLock {
+            val nextLevel = currentLevel.get() + 1
+            urlsByLevel.getValue(nextLevel)
         }
     }
 
@@ -71,10 +95,6 @@ class SearchState(scope: CoroutineScope, val rootRequest: SearchRequest) :
     fun isSendRequestEnable(): Boolean = requestCounter.get() < rootRequest.maxUrlCount
 
     fun incRequest() = requestCounter.incrementAndGet()
-
-    fun isSearchCompleted(): Boolean {
-        return processedUrlCounter.get() >= rootRequest.maxUrlCount || totalUrlsCounter.get() == processedUrlCounter.get()
-    }
 
     fun incLevel() = currentLevel.incrementAndGet()
 
@@ -91,4 +111,7 @@ class SearchState(scope: CoroutineScope, val rootRequest: SearchRequest) :
         processedRequestChannel.close()
         statusChannel.close()
     }
+
+    fun decRequest() = requestCounter.decrementAndGet()
+
 }

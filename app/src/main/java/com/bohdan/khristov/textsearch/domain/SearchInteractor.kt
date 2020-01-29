@@ -7,7 +7,6 @@ import com.bohdan.khristov.textsearch.data.model.SearchStatus
 import com.bohdan.khristov.textsearch.data.repository.ISearchRepository
 import com.bohdan.khristov.textsearch.util.countEntries
 import com.bohdan.khristov.textsearch.util.extractUrls
-import com.bohdan.khristov.textsearch.util.safeSend
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -41,8 +40,8 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
                     if (state!!.isSendRequestEnable()) {
                         val childRequest = request.copy(url = childUrl)
                         channel.send(childRequest)
+                        state!!.incRequest()
                     }
-                    state!!.incRequest()
                 }
                 channel.close()
             }
@@ -50,11 +49,15 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
             val jobs = mutableListOf<Job>()
             for (i in 0..request.threadCount) {
                 jobs.add(launch {
-                    for (searchRequest in channel) {
-                        launch { state!!.processingRequestChannel.safeSend(searchRequest) }
-                        val searchResult = singleSearch(searchRequest)
-                        val searchModel = SearchModel(searchRequest, searchResult)
-                        launch { state!!.processedRequestChannel.safeSend(searchModel) }
+                    for (childRequest in channel) {
+                        state!!.addProcessingRequest(childRequest)
+                        val childResult = singleSearch(childRequest)
+                        if (childResult != null) {
+                            val childModel = SearchModel(childRequest, childResult)
+                            state!!.addSearchResult(childModel)
+                        } else {
+                            state!!.decRequest()
+                        }
                     }
                 })
             }
@@ -68,10 +71,7 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
                     wideSearch(searchRequest)
                 }
                 false -> {
-                    launch {
-                        state!!.statusChannel.safeSend(SearchStatus.COMPLETED)
-                        stop()
-                    }
+                    state!!.changeStatus(SearchStatus.COMPLETED)
                 }
             }
         } catch (e: Exception) {
@@ -79,15 +79,12 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
         }
     }
 
-    private suspend fun singleSearch(searchRequest: SearchRequest): SearchResult {
-        return withTimeout(URL_PROCESS_TIMEOUT) {
+    private suspend fun singleSearch(searchRequest: SearchRequest): SearchResult? {
+        return withTimeoutOrNull(URL_PROCESS_TIMEOUT) {
             val fetchedText = searchRepository.getText(searchRequest.url)
             val entriesCount = async { fetchedText.countEntries(searchRequest.textToFind) }
             val parentUrls = async { fetchedText.extractUrls() }
             val searchResult = SearchResult(entriesCount.await(), parentUrls.await())
-
-            state!!.addNextLevelUrls(searchResult.parentUrls)
-
             searchResult
         }
     }
@@ -99,7 +96,6 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
     fun receiveStatus(): ReceiveChannel<SearchStatus> = state!!.statusChannel
 
     fun stop() {
-        state?.close()
         coroutineContext.cancelChildren()
     }
 }
