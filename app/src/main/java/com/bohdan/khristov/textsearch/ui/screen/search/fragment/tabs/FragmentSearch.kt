@@ -4,18 +4,25 @@ import android.os.Bundle
 import android.view.View
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.DividerItemDecoration
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.bohdan.khristov.textsearch.R
+import com.bohdan.khristov.textsearch.data.model.SearchRequest
 import com.bohdan.khristov.textsearch.data.model.SearchStatus.*
 import com.bohdan.khristov.textsearch.ui.common.BaseFragment
 import com.bohdan.khristov.textsearch.ui.dialogs.CreateSearchDialog
 import com.bohdan.khristov.textsearch.ui.dialogs.IDialog
 import com.bohdan.khristov.textsearch.ui.screen.search.SearchViewModel
+import com.bohdan.khristov.textsearch.ui.screen.search.cell.RequestCell
+import com.bohdan.khristov.textsearch.ui.screen.search.cell.SearchRequestDiffCallback
 import com.bohdan.khristov.textsearch.util.toggleVisibility
+import io.techery.celladapter.CellAdapter
 import kotlinx.android.synthetic.main.fragment_search.*
-import kotlinx.coroutines.ObsoleteCoroutinesApi
 
-@ObsoleteCoroutinesApi
 class FragmentSearch : BaseFragment() {
+
+    private val requestAdapter = CellAdapter()
 
     private var createSearchDialog: IDialog? = null
 
@@ -29,10 +36,29 @@ class FragmentSearch : BaseFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        searchViewModel.processingUrl.observe(this, Observer { url ->
-            currentUrlTv.text = url
+        requestAdapter.registerCell(SearchRequest::class.java, RequestCell::class.java)
+
+        val linearLayoutManager = LinearLayoutManager(view.context)
+
+        requestInProgressRv.layoutManager = linearLayoutManager
+        requestInProgressRv.adapter = requestAdapter
+
+        val dividerItemDecoration =
+            DividerItemDecoration(view.context, linearLayoutManager.orientation)
+        requestInProgressRv.addItemDecoration(dividerItemDecoration)
+
+        searchViewModel.requestsInProgress.observe(this, Observer { requests ->
+            val diffResult = DiffUtil.calculateDiff(
+                SearchRequestDiffCallback(
+                    newItems = requests,
+                    oldItems = requestAdapter.items.filterIsInstance<SearchRequest>().toList()
+                )
+            )
+            requestAdapter.items.clear()
+            requestAdapter.items.addAll(requests)
+            diffResult.dispatchUpdatesTo(requestAdapter)
         })
-        searchViewModel.totalEntries.observe(this, Observer { totalCount ->
+        searchViewModel.entriesCount.observe(this, Observer { totalCount ->
             entriesCountTv.text = totalCount.toString()
         })
         searchViewModel.progress.observe(this, Observer { progress ->
@@ -63,7 +89,7 @@ class FragmentSearch : BaseFragment() {
             createSearchDialog?.show()
         }
         stopBtn.setOnClickListener {
-            searchViewModel.stopSearch()
+            searchViewModel.stop()
         }
     }
 

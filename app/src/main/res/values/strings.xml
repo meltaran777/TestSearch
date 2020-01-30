@@ -10,7 +10,7 @@
     <string name="url">Url</string>
     <string name="enter_url">Enter URL</string>
     <string name="max_url_count">Max URL count</string>
-    <string name="thread_count">Thread count</string>
+    <string name="thread_count">Max parallel URL count</string>
     <string name="url_in_progress_label">URL in progress:</string>
     <string name="status_label">Search status:</string>
     <string name="entries_label">Total text entries: </string>

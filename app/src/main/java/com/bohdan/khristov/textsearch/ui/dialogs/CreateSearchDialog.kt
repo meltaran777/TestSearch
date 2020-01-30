@@ -69,7 +69,7 @@ class CreateSearchDialog(
                     url = urlEt.text.toString(),
                     textToFind = queryEt.text.toString(),
                     maxUrlCount = maxUrlCountEt.text.toString().toInt(),
-                    threadCount = threadCountEt.text.toString().toIntOrNull() ?: -1
+                    maxParallelUrl = threadCountEt.text.toString().toIntOrNull() ?: -1
                 )
                 onPositive?.invoke(searchRequest)
                 dialog.dismiss()

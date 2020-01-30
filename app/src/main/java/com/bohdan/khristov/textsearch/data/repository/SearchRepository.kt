@@ -5,6 +5,7 @@ import java.io.BufferedInputStream
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
+import java.lang.Exception
 import java.net.HttpURLConnection
 import java.net.MalformedURLException
 import java.net.URL
@@ -34,8 +35,10 @@ class SearchRepository : ISearchRepository {
             e.printStackTrace()
         } catch (e: IOException) {
             e.printStackTrace()
+        } catch (e: Exception) {
+            e.printStackTrace()
         } finally {
-            urlConnection!!.disconnect()
+            urlConnection?.disconnect()
         }
         return result
     }
