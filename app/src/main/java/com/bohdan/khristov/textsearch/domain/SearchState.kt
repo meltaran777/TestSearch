@@ -46,13 +46,16 @@ class SearchState(val rootRequest: SearchRequest) {
     }
 
     suspend fun addSearchResult(result: SearchModel) {
-        if (result.result == SearchResult.empty()) {
-            requestCounter.decrementAndGet()
-            return
-        }
         mutex.withLock {
             inProgressRequests.remove(result.request)
             inProgressRequestsChannel.safeSend(inProgressRequests)
+
+            if (result.result == SearchResult.empty()) {
+                requestCounter.decrementAndGet()
+                progress.decrementAndGet()
+                infoChannel.safeSend(getInfo())
+                return
+            }
 
             addNextLevelRequests(result.result.parentUrls.map { rootRequest.copy(url = it) })
 

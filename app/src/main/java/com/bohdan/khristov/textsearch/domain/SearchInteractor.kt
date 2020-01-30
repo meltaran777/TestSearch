@@ -18,7 +18,7 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Default + job
 
-    private val job = Job()
+    private val job = SupervisorJob()
 
     private var state: SearchState? = null
 
@@ -46,7 +46,7 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
             }
 
             val jobs = mutableListOf<Job>()
-            for (i in 0..rootRequest.threadCount) {
+            for (i in 1..rootRequest.threadCount) {
                 jobs.add(launch {
                     for (request in requestChannel) {
                         state!!.addInProgressRequest(request)

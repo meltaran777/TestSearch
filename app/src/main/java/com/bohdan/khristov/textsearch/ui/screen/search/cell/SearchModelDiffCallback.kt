@@ -4,7 +4,7 @@ import androidx.recyclerview.widget.DiffUtil
 import com.bohdan.khristov.textsearch.data.model.SearchModel
 
 
-class LogDiffCallback(
+class SearchModelDiffCallback(
     private val newItems: List<SearchModel>,
     private val oldItems: List<SearchModel>
 ) :

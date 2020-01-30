@@ -13,9 +13,11 @@
         android:layout_margin="8dp"
         android:padding="8dp"
         app:cardCornerRadius="16dp"
+        app:layout_constraintBottom_toTopOf="@+id/fab"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0">
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/searchConstraintLayout"
@@ -100,43 +102,6 @@
                 app:layout_constraintTop_toBottomOf="@+id/searchForLabelTv" />
 
             <TextView
-                android:id="@+id/currentUrlLabelTv"
-                style="@style/TextStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_marginTop="8dp"
-                android:text="@string/url_in_progress_label"
-                android:textColor="@color/colorLabel"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/separator" />
-
-            <androidx.core.widget.ContentLoadingProgressBar
-                android:id="@+id/currentUrlPb"
-                style="@android:style/Widget.ProgressBar.Small"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_centerInParent="true"
-                app:layout_constraintBottom_toBottomOf="@+id/currentUrlLabelTv"
-                app:layout_constraintStart_toEndOf="@+id/currentUrlLabelTv"
-                app:layout_constraintTop_toTopOf="@id/currentUrlLabelTv" />
-
-            <TextView
-                android:id="@+id/currentUrlTv"
-                style="@style/TextStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/colorValue"
-                android:textSize="14sp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="@+id/currentUrlLabelTv"
-                app:layout_constraintTop_toBottomOf="@+id/currentUrlLabelTv"
-                tools:text="http://www.google.com" />
-
-            <TextView
                 android:id="@+id/statusLabelTv"
                 style="@style/TextStyle"
                 android:layout_width="wrap_content"
@@ -145,7 +110,7 @@
                 android:text="@string/status_label"
                 android:textColor="@color/colorLabel"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/currentUrlTv" />
+                app:layout_constraintTop_toBottomOf="@+id/separator" />
 
             <TextView
                 android:id="@+id/statusTv"
@@ -157,7 +122,7 @@
                 app:layout_constraintBottom_toBottomOf="@+id/statusLabelTv"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/statusLabelTv"
-                app:layout_constraintTop_toBottomOf="@+id/currentUrlTv"
+                app:layout_constraintTop_toBottomOf="@+id/separator"
                 tools:text="In Progress" />
 
             <TextView
@@ -193,12 +158,47 @@
                 android:layout_centerVertical="true"
                 android:layout_marginTop="8dp"
                 android:max="100"
-
                 android:progress="45"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/entriesLabelTv" />
 
+            <TextView
+                android:id="@+id/currentUrlLabelTv"
+                style="@style/TextStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="8dp"
+                android:text="@string/url_in_progress_label"
+                android:textColor="@color/colorLabel"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/searchPb" />
+
+            <androidx.core.widget.ContentLoadingProgressBar
+                android:id="@+id/currentUrlPb"
+                style="@android:style/Widget.ProgressBar.Small"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                app:layout_constraintBottom_toBottomOf="@+id/currentUrlLabelTv"
+                app:layout_constraintStart_toEndOf="@+id/currentUrlLabelTv"
+                app:layout_constraintTop_toTopOf="@id/currentUrlLabelTv" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/requestInProgressRv"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:layout_marginBottom="8dp"
+                android:maxHeight="300dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="@+id/currentUrlLabelTv"
+                app:layout_constraintTop_toBottomOf="@+id/currentUrlLabelTv"
+                tools:layout_height="300dp"
+                tools:text="http://www.google.com" />
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.cardview.widget.CardView>
 
