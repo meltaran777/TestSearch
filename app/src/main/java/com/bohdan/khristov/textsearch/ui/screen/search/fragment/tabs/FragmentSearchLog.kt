@@ -13,6 +13,8 @@ import com.bohdan.khristov.textsearch.ui.screen.search.cell.SearchCell
 import io.techery.celladapter.CellAdapter
 import kotlinx.android.synthetic.main.fragment_search_history.*
 import androidx.recyclerview.widget.DividerItemDecoration
+import androidx.recyclerview.widget.DiffUtil
+import com.bohdan.khristov.textsearch.ui.screen.search.cell.LogDiffCallback
 
 class FragmentSearchLog : BaseFragment() {
 
@@ -38,7 +40,15 @@ class FragmentSearchLog : BaseFragment() {
         searchLogRv.addItemDecoration(dividerItemDecoration)
 
         searchViewModel.processedRequests.observe(this, Observer { items ->
-            adapter.items = items
+            val diffResult = DiffUtil.calculateDiff(
+                LogDiffCallback(
+                    newItems = items,
+                    oldItems = adapter.items.filterIsInstance<SearchModel>().toList()
+                )
+            )
+            adapter.items.clear()
+            adapter.items.addAll(items)
+            diffResult.dispatchUpdatesTo(adapter)
         })
     }
 

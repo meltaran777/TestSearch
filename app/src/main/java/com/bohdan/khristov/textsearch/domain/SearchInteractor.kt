@@ -27,8 +27,8 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
         if (state?.status == SearchStatus.IN_PROGRESS) {
             close()
         }
+        state = SearchState(rootRequest = searchRequest)
         launch {
-            state = SearchState(rootRequest = searchRequest)
             state!!.changeStatus(SearchStatus.IN_PROGRESS)
             wideSearch(searchRequest)
         }
