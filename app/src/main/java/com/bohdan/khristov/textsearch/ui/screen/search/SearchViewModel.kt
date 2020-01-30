@@ -11,13 +11,11 @@ import kotlinx.coroutines.*
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 
-const val MAX_PROCESSING_REQUEST_SIZE = 10
-
 class SearchViewModel @Inject constructor(private val searchInteractor: SearchInteractor) :
     ViewModel(), CoroutineScope {
 
     override val coroutineContext: CoroutineContext
-        get() = Dispatchers.Main + job
+        get() = Dispatchers.Default + job
 
     val requestsInProgress = MutableLiveData<List<SearchRequest>>()
     val processedRequests = MutableLiveData<List<SearchModel>>()
@@ -32,7 +30,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
         searchInteractor.search(searchRequest)
         launch {
             for (requests in searchInteractor.receiveInProgressRequests()) {
-                requestsInProgress.postValue(requests.takeLast(MAX_PROCESSING_REQUEST_SIZE))
+                requestsInProgress.postValue(requests)
             }
         }
         launch {
@@ -56,9 +54,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
     }
 
     fun stop() {
-        launch {
-            searchInteractor.stop()
-        }
+        searchInteractor.stop()
     }
 
     override fun onCleared() {

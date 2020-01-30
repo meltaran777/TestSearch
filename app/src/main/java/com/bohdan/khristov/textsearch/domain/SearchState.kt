@@ -41,14 +41,14 @@ class SearchState(val rootRequest: SearchRequest) {
     suspend fun addInProgressRequest(searchRequest: SearchRequest) {
         mutex.withLock {
             inProgressRequests.add(searchRequest)
-            inProgressRequestsChannel.safeSend(inProgressRequests)
+            inProgressRequestsChannel.safeSend(inProgressRequests.toMutableList())
         }
     }
 
     suspend fun addSearchResult(result: SearchModel) {
         mutex.withLock {
             inProgressRequests.remove(result.request)
-            inProgressRequestsChannel.safeSend(inProgressRequests)
+            inProgressRequestsChannel.safeSend(inProgressRequests.toMutableList())
 
             if (result.result == SearchResult.empty()) {
                 requestCounter.decrementAndGet()
@@ -90,7 +90,7 @@ class SearchState(val rootRequest: SearchRequest) {
         return SearchInfo(
             progress = progress.get(),
             entriesCount = totalEntries.get(),
-            processedRequests = processedRequests
+            processedRequests = processedRequests.toMutableList()
         )
     }
 
@@ -112,7 +112,9 @@ class SearchState(val rootRequest: SearchRequest) {
         }
     }
 
-    fun isSendRequestEnable(): Boolean = requestCounter.get() < rootRequest.maxUrlCount
+    fun isSendRequestEnable(): Boolean {
+        return requestCounter.get() < rootRequest.maxUrlCount
+    }
 
     fun incRequestCounter() = requestCounter.incrementAndGet()
 

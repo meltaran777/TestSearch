@@ -98,7 +98,7 @@ class FragmentSearch : BaseFragment() {
     override fun getLayoutId() = R.layout.fragment_search
 
     companion object {
-        const val REQUEST_UPDATE_DELAY = 500L
+        const val REQUEST_UPDATE_DELAY = 1000L
 
         fun newInstance() = FragmentSearch()
     }
