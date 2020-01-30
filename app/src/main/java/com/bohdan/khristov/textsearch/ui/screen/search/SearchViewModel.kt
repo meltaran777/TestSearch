@@ -60,7 +60,7 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
     }
 
     override fun onCleared() {
-        searchInteractor.coroutineContext.cancelChildren()
+        searchInteractor.close()
         coroutineContext.cancelChildren()
         super.onCleared()
     }

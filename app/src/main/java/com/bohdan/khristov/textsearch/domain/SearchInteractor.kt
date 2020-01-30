@@ -90,12 +90,14 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
 
     fun receiveStatus(): ReceiveChannel<SearchStatus> = state!!.statusChannel
 
-    suspend fun stop() {
-        state?.changeStatus(SearchStatus.COMPLETED)
-        close()
+    fun stop() {
+        launch {
+            state?.changeStatus(SearchStatus.COMPLETED)
+            close()
+        }
     }
 
-    private fun close() {
+    fun close() {
         state?.close()
         coroutineContext.cancelChildren()
     }
