@@ -46,7 +46,7 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
             }
 
             val jobs = mutableListOf<Job>()
-            for (i in 1..rootRequest.threadCount) {
+            for (i in 1..rootRequest.maxParallelUrl) {
                 jobs.add(launch {
                     for (request in requestChannel) {
                         state!!.addInProgressRequest(request)

@@ -40,25 +40,21 @@ class FragmentSearchLog : BaseFragment() {
         searchLogRv.addItemDecoration(dividerItemDecoration)
 
         searchViewModel.processedRequests.observe(this, Observer { items ->
-            searchLogRv.postDelayed({
-                val diffResult = DiffUtil.calculateDiff(
-                    SearchModelDiffCallback(
-                        newItems = items,
-                        oldItems = adapter.items.filterIsInstance<SearchModel>().toList()
-                    )
+            val diffResult = DiffUtil.calculateDiff(
+                SearchModelDiffCallback(
+                    newItems = items,
+                    oldItems = adapter.items.filterIsInstance<SearchModel>().toList()
                 )
-                adapter.items.clear()
-                adapter.items.addAll(items)
-                diffResult.dispatchUpdatesTo(adapter)
-            }, LOG_UPDATE_DELAY)
+            )
+            adapter.items.clear()
+            adapter.items.addAll(items)
+            diffResult.dispatchUpdatesTo(adapter)
         })
     }
 
     override fun getLayoutId() = R.layout.fragment_search_history
 
     companion object {
-        const val LOG_UPDATE_DELAY = 1000L
-
         fun newInstance() = FragmentSearchLog()
     }
 }

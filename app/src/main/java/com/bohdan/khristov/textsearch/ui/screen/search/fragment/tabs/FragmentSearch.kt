@@ -48,17 +48,15 @@ class FragmentSearch : BaseFragment() {
         requestInProgressRv.addItemDecoration(dividerItemDecoration)
 
         searchViewModel.requestsInProgress.observe(this, Observer { requests ->
-            requestInProgressRv.postDelayed({
-                val diffResult = DiffUtil.calculateDiff(
-                    SearchRequestDiffCallback(
-                        newItems = requests,
-                        oldItems = requestAdapter.items.filterIsInstance<SearchRequest>().toList()
-                    )
+            val diffResult = DiffUtil.calculateDiff(
+                SearchRequestDiffCallback(
+                    newItems = requests,
+                    oldItems = requestAdapter.items.filterIsInstance<SearchRequest>().toList()
                 )
-                requestAdapter.items.clear()
-                requestAdapter.items.addAll(requests)
-                diffResult.dispatchUpdatesTo(requestAdapter)
-            }, REQUEST_UPDATE_DELAY)
+            )
+            requestAdapter.items.clear()
+            requestAdapter.items.addAll(requests)
+            diffResult.dispatchUpdatesTo(requestAdapter)
         })
         searchViewModel.entriesCount.observe(this, Observer { totalCount ->
             entriesCountTv.text = totalCount.toString()
@@ -98,8 +96,6 @@ class FragmentSearch : BaseFragment() {
     override fun getLayoutId() = R.layout.fragment_search
 
     companion object {
-        const val REQUEST_UPDATE_DELAY = 1000L
-
         fun newInstance() = FragmentSearch()
     }
 }
