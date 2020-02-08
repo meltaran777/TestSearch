@@ -14,6 +14,7 @@ import com.bohdan.khristov.textsearch.ui.common.BaseFragment
 import com.bohdan.khristov.textsearch.ui.dialogs.CreateSearchDialog
 import com.bohdan.khristov.textsearch.ui.dialogs.IDialog
 import com.bohdan.khristov.textsearch.ui.screen.search.SearchViewModel
+import com.bohdan.khristov.textsearch.ui.screen.search.cell.LinearLayoutManagerWrapper
 import com.bohdan.khristov.textsearch.ui.screen.search.cell.RequestCell
 import com.bohdan.khristov.textsearch.ui.screen.search.cell.SearchRequestDiffCallback
 import com.bohdan.khristov.textsearch.util.toggleVisibility
@@ -38,7 +39,7 @@ class FragmentSearch : BaseFragment() {
 
         requestAdapter.registerCell(SearchRequest::class.java, RequestCell::class.java)
 
-        val linearLayoutManager = LinearLayoutManager(view.context)
+        val linearLayoutManager = LinearLayoutManagerWrapper(view.context)
 
         requestInProgressRv.layoutManager = linearLayoutManager
         requestInProgressRv.adapter = requestAdapter
@@ -51,7 +52,7 @@ class FragmentSearch : BaseFragment() {
             val diffResult = DiffUtil.calculateDiff(
                 SearchRequestDiffCallback(
                     newItems = requests,
-                    oldItems = requestAdapter.items.filterIsInstance<SearchRequest>().toList()
+                    oldItems = requestAdapter.items.filterIsInstance<SearchRequest>().toMutableList()
                 )
             )
             requestAdapter.items.clear()

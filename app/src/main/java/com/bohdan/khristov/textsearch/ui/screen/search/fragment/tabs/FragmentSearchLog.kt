@@ -4,17 +4,17 @@ import android.os.Bundle
 import android.view.View
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.DividerItemDecoration
 import com.bohdan.khristov.textsearch.R
 import com.bohdan.khristov.textsearch.data.model.SearchModel
 import com.bohdan.khristov.textsearch.ui.common.BaseFragment
 import com.bohdan.khristov.textsearch.ui.screen.search.SearchViewModel
+import com.bohdan.khristov.textsearch.ui.screen.search.cell.LinearLayoutManagerWrapper
 import com.bohdan.khristov.textsearch.ui.screen.search.cell.SearchCell
+import com.bohdan.khristov.textsearch.ui.screen.search.cell.SearchModelDiffCallback
 import io.techery.celladapter.CellAdapter
 import kotlinx.android.synthetic.main.fragment_search_history.*
-import androidx.recyclerview.widget.DividerItemDecoration
-import androidx.recyclerview.widget.DiffUtil
-import com.bohdan.khristov.textsearch.ui.screen.search.cell.SearchModelDiffCallback
 
 class FragmentSearchLog : BaseFragment() {
 
@@ -32,7 +32,7 @@ class FragmentSearchLog : BaseFragment() {
 
         adapter.registerCell(SearchModel::class.java, SearchCell::class.java)
 
-        val linearLayoutManager = LinearLayoutManager(view.context)
+        val linearLayoutManager = LinearLayoutManagerWrapper(view.context)
         searchLogRv.layoutManager = linearLayoutManager
         searchLogRv.adapter = adapter
         val dividerItemDecoration =

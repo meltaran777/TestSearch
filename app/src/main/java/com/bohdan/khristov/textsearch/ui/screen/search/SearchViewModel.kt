@@ -2,10 +2,12 @@ package com.bohdan.khristov.textsearch.ui.screen.search
 
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import com.bohdan.khristov.textsearch.data.model.SearchInfo
 import com.bohdan.khristov.textsearch.data.model.SearchModel
 import com.bohdan.khristov.textsearch.data.model.SearchRequest
 import com.bohdan.khristov.textsearch.data.model.SearchStatus
 import com.bohdan.khristov.textsearch.domain.SearchInteractor
+import com.bohdan.khristov.textsearch.util.L
 import com.bohdan.khristov.textsearch.util.default
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -13,7 +15,7 @@ import kotlinx.coroutines.channels.ticker
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 
-private const val MAX_UPDATE_DELAY = 10_000L
+private const val MAX_UPDATE_DELAY = 3_000L
 
 class SearchViewModel @Inject constructor(private val searchInteractor: SearchInteractor) :
     ViewModel(), CoroutineScope {
@@ -32,35 +34,40 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
     private var lastRequests = listOf<SearchRequest>()
     private var lastResults = listOf<SearchModel>()
 
-    private val job = Job()
+    private var job: Job = Job()
+    private var searchJob: Job = Job()
 
-    fun search(searchRequest: SearchRequest) {
-        clean()
-        searchInteractor.search(searchRequest)
+    //TODO: handle case when start search without stop previous
+    fun search(request: SearchRequest) {
         launch {
-            for (requests in searchInteractor.receiveInProgressRequests()) {
-                lastRequests = requests
+            withContext(Dispatchers.Main) {
+                clean()
             }
-        }
-        launch {
-            for (info in searchInteractor.receiveInfo()) {
-                entriesCount.postValue(info.entriesCount)
-                progress.postValue(info.progress)
-                lastResults = info.processedRequests
-            }
-        }
-        launch {
-            for (status in searchInteractor.receiveStatus()) {
-                searchStatus.postValue(status)
-            }
-        }
-        launch {
-            updateChannel =
-                ticker(delayMillis = calculateListUpdateDilay(searchRequest), initialDelayMillis = 0)
-            updateChannel?.let { channel ->
-                for (event in channel) {
-                    requestsInProgress.postValue(lastRequests.toMutableList())
-                    processedRequests.postValue(lastResults.toMutableList())
+            searchJob = searchInteractor.search(request, object : SearchInteractor.Listener {
+                override fun onStatusChanged(status: SearchStatus) {
+                    L.log("SearchDebug", "onStatusChanged: $status")
+                    searchStatus.postValue(status)
+                }
+
+                override fun onInfoChanged(info: SearchInfo) {
+                    L.log("SearchDebug", "onInfoChanged: $info")
+                    entriesCount.postValue(info.entriesCount)
+                    progress.postValue(info.progress)
+                    lastResults = info.processedRequests
+                    lastRequests = info.inProgressRequests
+                }
+            })
+            launch {
+                updateChannel =
+                    ticker(
+                        delayMillis = calculateListUpdateDilay(request),
+                        initialDelayMillis = 0
+                    )
+                updateChannel?.let { channel ->
+                    for (event in channel) {
+                        requestsInProgress.postValue(lastRequests.toMutableList())
+                        processedRequests.postValue(lastResults.toMutableList())
+                    }
                 }
             }
         }
@@ -79,16 +86,15 @@ class SearchViewModel @Inject constructor(private val searchInteractor: SearchIn
     }
 
     fun stop() {
-        searchInteractor.stop()
-        updateChannel?.cancel()
-        requestsInProgress.postValue(lastRequests.toMutableList())
-        processedRequests.postValue(lastResults.toMutableList())
+        launch {
+            searchInteractor.stop()
+            updateChannel?.cancel()
+        }
     }
 
     override fun onCleared() {
+        searchJob.cancel()
         updateChannel?.cancel()
-        searchInteractor.close()
-        coroutineContext.cancelChildren()
         super.onCleared()
     }
 }

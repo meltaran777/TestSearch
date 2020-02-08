@@ -4,7 +4,7 @@ data class SearchRequest(
     val url: String,
     val textToFind: String,
     val maxUrlCount: Int,
-    val maxParallelUrl: Int = -1
+    val maxParallelUrl: Int
 ){
     companion object {
         fun empty(): SearchRequest = SearchRequest("", "", -1, -1)
