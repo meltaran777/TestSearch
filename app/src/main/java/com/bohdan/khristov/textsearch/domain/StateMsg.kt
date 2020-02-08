@@ -48,8 +48,9 @@ class GetCurrentLevelRequestsMsg(response: CompletableDeferred<List<SearchReques
 class GetNextLevelRequestsMsg(response: CompletableDeferred<List<SearchRequest>> = CompletableDeferred()) :
     StateMsg<List<SearchRequest>>(response)
 
-suspend fun <T> SendChannel<StateMsg<*>>.sendWithResult(msg: StateMsg<T>): T {
-    if(!isClosedForSend)
+suspend fun <T> SendChannel<StateMsg<*>>.sendWithResult(msg: StateMsg<T>): T? {
+    return if (!isClosedForSend) {
         this.send(msg)
-    return msg.response.await()
+        msg.response.await()
+    } else null
 }

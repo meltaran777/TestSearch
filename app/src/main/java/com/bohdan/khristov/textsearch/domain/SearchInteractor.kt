@@ -10,9 +10,8 @@ import kotlinx.coroutines.channels.produce
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 
-private const val REQUEST_PROCESS_TIMEOUT = 3_500L
+private const val REQUEST_PROCESS_TIMEOUT = 5_000L
 
-//TODO:fix:search result is not correct when stop search and start new one
 class SearchInteractor @Inject constructor(private val searchRepository: ISearchRepository) :
     CoroutineScope {
 
@@ -30,11 +29,13 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
     private var listener: Listener? = null
 
     @ObsoleteCoroutinesApi
-     fun search(request: SearchRequest, listener: Listener): Job {
+    fun search(request: SearchRequest, listener: Listener): Job {
         return launch {
             this@SearchInteractor.listener = listener
             stateActor = stateActor(request)
-            listener.onStatusChanged(stateActor!!.sendWithResult(SetStatusMsg(SearchStatus.IN_PROGRESS)))
+            stateActor!!.sendWithResult(SetStatusMsg(SearchStatus.IN_PROGRESS))?.let { status ->
+                listener.onStatusChanged(status)
+            }
             wideSearch(request)
         }
     }
@@ -42,12 +43,14 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
     private suspend fun wideSearch(rootRequest: SearchRequest) {
         try {
             val requestChannel = produce {
-                val requests =
-                    stateActor!!.sendWithResult(GetCurrentLevelRequestsMsg())
-                for (request in requests) {
-                    if (stateActor!!.sendWithResult(IsSendRequestEnableMsg())) {
-                        send(request)
-                        stateActor!!.sendWithResult(IncRequestCounterMsg())
+                val requests = stateActor!!.sendWithResult(GetCurrentLevelRequestsMsg())
+                if (requests != null) {
+                    for (request in requests) {
+                        val isEnable = stateActor!!.sendWithResult(IsSendRequestEnableMsg())
+                        if (isEnable == true) {
+                            send(request)
+                            stateActor!!.sendWithResult(IncRequestCounterMsg())
+                        }
                     }
                 }
             }
@@ -57,21 +60,19 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
                 jobs.add(launch {
                     for (request in requestChannel) {
                         stateActor!!.sendWithResult(AddRequestMsg(request))
-
-                        listener?.onInfoChanged(stateActor!!.sendWithResult(GetInfoMsg()))
+                        updateInfo()
 
                         val result = singleSearch(request) ?: SearchResult.empty()
                         stateActor!!.sendWithResult(AddResultMsg(SearchModel(request, result)))
-
-                        listener?.onInfoChanged(stateActor!!.sendWithResult(GetInfoMsg()))
-                        listener?.onStatusChanged(stateActor!!.sendWithResult(GetStatusMsg()))
+                        updateInfo()
+                        updateStatus()
                     }
                 })
             }
             jobs.forEach { it.join() }
 
             val firstRequestOnNextLevel =
-                stateActor!!.sendWithResult(GetNextLevelRequestsMsg()).firstOrNull()
+                stateActor!!.sendWithResult(GetNextLevelRequestsMsg())?.firstOrNull()
             when (firstRequestOnNextLevel != null) {
                 true -> {
                     stateActor!!.sendWithResult(IncLevelMsg())
@@ -83,6 +84,20 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private suspend fun updateInfo() {
+        val info = stateActor!!.sendWithResult(GetInfoMsg())
+        if (info != null) {
+            listener?.onInfoChanged(info)
+        }
+    }
+
+    private suspend fun updateStatus() {
+        val status = stateActor!!.sendWithResult(GetStatusMsg())
+        if (status != null) {
+            listener?.onStatusChanged(status)
         }
     }
 
@@ -98,11 +113,16 @@ class SearchInteractor @Inject constructor(private val searchRepository: ISearch
         }
     }
 
-    suspend fun stop() {
-        launch {
-            listener?.onStatusChanged(stateActor!!.sendWithResult(SetStatusMsg(SearchStatus.COMPLETED)))
-        }.join()
-        close()
+    fun stop(): Job {
+        return launch {
+            launch {
+                val status = stateActor!!.sendWithResult(SetStatusMsg(SearchStatus.COMPLETED))
+                if (status != null) {
+                    listener?.onStatusChanged(status)
+                }
+            }.join()
+            close()
+        }
     }
 
     private fun close() {
